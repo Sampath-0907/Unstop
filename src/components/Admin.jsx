@@ -30,7 +30,8 @@ import {
   Star,
   Image as ImageIcon,
   Save,
-  RefreshCw
+  RefreshCw,
+  GripVertical
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { ImageUploader } from './ImageUploader';
@@ -77,6 +78,61 @@ export const Admin = ({ onNavigateToSite }) => {
 
   // Active navigation tab
   const [activeTab, setActiveTab] = useState('events');
+
+  // Drag and drop reordering state
+  const [draggedEventIdx, setDraggedEventIdx] = useState(null);
+  const [dragOverEventIdx, setDragOverEventIdx] = useState(null);
+
+  const [draggedGalleryIdx, setDraggedGalleryIdx] = useState(null);
+  const [dragOverGalleryIdx, setDragOverGalleryIdx] = useState(null);
+
+  const [draggedTeamIdx, setDraggedTeamIdx] = useState(null);
+  const [dragOverTeamIdx, setDragOverTeamIdx] = useState(null);
+
+  const handleDropEvent = (targetIdx) => {
+    if (draggedEventIdx === null || draggedEventIdx === targetIdx) {
+      setDraggedEventIdx(null);
+      setDragOverEventIdx(null);
+      return;
+    }
+    const updated = [...events];
+    const [movedItem] = updated.splice(draggedEventIdx, 1);
+    updated.splice(targetIdx, 0, movedItem);
+    reorderEvents(updated);
+    showToast(`Reordered "${movedItem.title}" to position #${targetIdx + 1}`);
+    setDraggedEventIdx(null);
+    setDragOverEventIdx(null);
+  };
+
+  const handleDropGallery = (targetIdx) => {
+    if (draggedGalleryIdx === null || draggedGalleryIdx === targetIdx) {
+      setDraggedGalleryIdx(null);
+      setDragOverGalleryIdx(null);
+      return;
+    }
+    const updated = [...gallery];
+    const [movedItem] = updated.splice(draggedGalleryIdx, 1);
+    updated.splice(targetIdx, 0, movedItem);
+    reorderGallery(updated);
+    showToast(`Reordered "${movedItem.title}" to position #${targetIdx + 1}`);
+    setDraggedGalleryIdx(null);
+    setDragOverGalleryIdx(null);
+  };
+
+  const handleDropTeam = (targetIdx) => {
+    if (draggedTeamIdx === null || draggedTeamIdx === targetIdx) {
+      setDraggedTeamIdx(null);
+      setDragOverTeamIdx(null);
+      return;
+    }
+    const updated = [...team];
+    const [movedItem] = updated.splice(draggedTeamIdx, 1);
+    updated.splice(targetIdx, 0, movedItem);
+    reorderTeam(updated);
+    showToast(`Reordered "${movedItem.name}" to position #${targetIdx + 1}`);
+    setDraggedTeamIdx(null);
+    setDragOverTeamIdx(null);
+  };
 
   // Site Banners state
   const [heroBannerUrl, setHeroBannerUrl] = useState(banners?.heroBanner || '/hero-banner.jpg');
@@ -702,13 +758,52 @@ export const Admin = ({ onNavigateToSite }) => {
         {/* TAB 1: EVENTS MANAGEMENT */}
         {activeTab === 'events' && (
           <div className="space-y-6">
+            <div className="flex items-center justify-between bg-slate-900/60 border border-slate-800/80 px-4 py-3 rounded-2xl text-xs text-slate-400 backdrop-blur-xs">
+              <div className="flex items-center gap-2">
+                <GripVertical className="w-4 h-4 text-yellow-400 shrink-0" />
+                <span><strong className="text-slate-200">Drag & Drop</strong> any event card to rearrange the live website order, or use the arrow controls!</span>
+              </div>
+              <span className="text-[11px] font-mono text-blue-400 font-semibold">{events.length} Events</span>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
               {events.map((ev, idx) => {
                 const imgCount = (ev.images && ev.images.length) || (ev.image ? 1 : 0);
                 return (
                   <div
                     key={ev.id}
-                    className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden flex flex-col justify-between shadow-lg group hover:border-slate-700 transition-colors"
+                    draggable
+                    onDragStart={(e) => {
+                      setDraggedEventIdx(idx);
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', String(idx));
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      setDragOverEventIdx(idx);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverEventIdx === idx) setDragOverEventIdx(null);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedEventIdx(null);
+                      setDragOverEventIdx(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleDropEvent(idx);
+                    }}
+                    className={`bg-slate-900 border rounded-3xl overflow-hidden flex flex-col justify-between shadow-lg transition-all duration-200 cursor-grab active:cursor-grabbing select-none ${
+                      draggedEventIdx === idx
+                        ? 'opacity-35 scale-95 border-dashed border-blue-500 ring-2 ring-blue-500/50'
+                        : dragOverEventIdx === idx
+                        ? 'border-yellow-400 ring-4 ring-yellow-400/50 scale-[1.03] bg-slate-800/95 shadow-2xl z-20'
+                        : 'border-slate-800 hover:border-slate-700'
+                    }`}
                   >
                     <div>
                       {/* Image Thumbnail */}
@@ -718,7 +813,10 @@ export const Admin = ({ onNavigateToSite }) => {
                           alt={ev.title}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
-                        <div className="absolute top-3 left-3 flex gap-2">
+                        <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                          <div className="p-1 rounded-md bg-slate-950/80 text-slate-300 backdrop-blur-xs" title="Drag to reorder">
+                            <GripVertical className="w-3.5 h-3.5 text-yellow-400" />
+                          </div>
                           <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
                             idx === 0 
                               ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/30' 
@@ -834,220 +932,308 @@ export const Admin = ({ onNavigateToSite }) => {
 
         {/* TAB 2: GALLERY MANAGEMENT */}
         {activeTab === 'gallery' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-            {gallery.map((item, idx) => {
-              const imgs = Array.isArray(item.images) ? item.images : (item.image ? [item.image] : []);
-              return (
-                <div
-                  key={item.id}
-                  className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden flex flex-col justify-between shadow-lg group hover:border-slate-700 transition-colors"
-                >
-                  <div>
-                    <div className="relative h-48 w-full bg-slate-950 overflow-hidden">
-                      <img
-                        src={item.image || imgs[0] || '/Events/In 1.JPG'}
-                        alt={item.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                      <div className="absolute top-3 left-3 flex items-center gap-2">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                          idx === 0 
-                            ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/30' 
-                            : 'bg-slate-950/80 text-slate-300 border border-slate-700'
-                        }`}>
-                          {idx === 0 ? '★ #1 (First)' : `#${idx + 1}`}
-                        </span>
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-600 text-white">
-                          {item.category}
-                        </span>
+          <div className="space-y-6">
+            <div className="flex items-center justify-between bg-slate-900/60 border border-slate-800/80 px-4 py-3 rounded-2xl text-xs text-slate-400 backdrop-blur-xs">
+              <div className="flex items-center gap-2">
+                <GripVertical className="w-4 h-4 text-yellow-400 shrink-0" />
+                <span><strong className="text-slate-200">Drag & Drop</strong> any album card to rearrange gallery order on the live website, or use the arrow controls!</span>
+              </div>
+              <span className="text-[11px] font-mono text-blue-400 font-semibold">{gallery.length} Albums</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+              {gallery.map((item, idx) => {
+                const imgs = Array.isArray(item.images) ? item.images : (item.image ? [item.image] : []);
+                return (
+                  <div
+                    key={item.id}
+                    draggable
+                    onDragStart={(e) => {
+                      setDraggedGalleryIdx(idx);
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', String(idx));
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      setDragOverGalleryIdx(idx);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverGalleryIdx === idx) setDragOverGalleryIdx(null);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedGalleryIdx(null);
+                      setDragOverGalleryIdx(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleDropGallery(idx);
+                    }}
+                    className={`bg-slate-900 border rounded-3xl overflow-hidden flex flex-col justify-between shadow-lg transition-all duration-200 cursor-grab active:cursor-grabbing select-none ${
+                      draggedGalleryIdx === idx
+                        ? 'opacity-35 scale-95 border-dashed border-blue-500 ring-2 ring-blue-500/50'
+                        : dragOverGalleryIdx === idx
+                        ? 'border-yellow-400 ring-4 ring-yellow-400/50 scale-[1.03] bg-slate-800/95 shadow-2xl z-20'
+                        : 'border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    <div>
+                      <div className="relative h-48 w-full bg-slate-950 overflow-hidden">
+                        <img
+                          src={item.image || imgs[0] || '/Events/In 1.JPG'}
+                          alt={item.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                          <div className="p-1 rounded-md bg-slate-950/80 text-slate-300 backdrop-blur-xs" title="Drag to reorder">
+                            <GripVertical className="w-3.5 h-3.5 text-yellow-400" />
+                          </div>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                            idx === 0 
+                              ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/30' 
+                              : 'bg-slate-950/80 text-slate-300 border border-slate-700'
+                          }`}>
+                            {idx === 0 ? '★ #1 (First)' : `#${idx + 1}`}
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-600 text-white">
+                            {item.category}
+                          </span>
+                        </div>
+                        <div className="absolute top-3 right-3">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/70 text-slate-200 backdrop-blur-xs">
+                            {imgs.length} Photos
+                          </span>
+                        </div>
                       </div>
-                      <div className="absolute top-3 right-3">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/70 text-slate-200 backdrop-blur-xs">
-                          {imgs.length} Photos
-                        </span>
+
+                      <div className="p-5">
+                        <h3 className="font-bold text-base text-white mb-1.5 line-clamp-1">
+                          {item.title}
+                        </h3>
+                        <p className="text-xs text-yellow-400 font-medium mb-2">{item.date}</p>
+                        <p className="text-xs text-slate-400 line-clamp-2">{item.description}</p>
                       </div>
                     </div>
 
-                    <div className="p-5">
-                      <h3 className="font-bold text-base text-white mb-1.5 line-clamp-1">
-                        {item.title}
-                      </h3>
-                      <p className="text-xs text-yellow-400 font-medium mb-2">{item.date}</p>
-                      <p className="text-xs text-slate-400 line-clamp-2">{item.description}</p>
-                    </div>
-                  </div>
-
-                  {/* Actions & Reorder Footer */}
-                  <div className="p-3.5 px-4 border-t border-slate-800/80 bg-slate-950/40 flex items-center justify-between gap-2">
-                    {/* Move Order Controls */}
-                    <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
-                      {idx > 0 && (
+                    {/* Actions & Reorder Footer */}
+                    <div className="p-3.5 px-4 border-t border-slate-800/80 bg-slate-950/40 flex items-center justify-between gap-2">
+                      {/* Move Order Controls */}
+                      <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+                        {idx > 0 && (
+                          <button
+                            onClick={() => {
+                              pinToTopGallery(item.id);
+                              showToast(`Pinned "${item.title}" to #1 (First on Website)!`);
+                            }}
+                            className="p-1.5 rounded-lg hover:bg-amber-400/20 text-slate-400 hover:text-amber-300 transition-colors cursor-pointer"
+                            title="Make #1 on Website"
+                          >
+                            <ChevronsUp className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <button
                           onClick={() => {
-                            pinToTopGallery(item.id);
-                            showToast(`Pinned "${item.title}" to #1 (First on Website)!`);
+                            moveGallery(idx, 'up');
+                            showToast(`Moved "${item.title}" forward.`);
                           }}
-                          className="p-1.5 rounded-lg hover:bg-amber-400/20 text-slate-400 hover:text-amber-300 transition-colors cursor-pointer"
-                          title="Make #1 on Website"
+                          disabled={idx === 0}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            idx === 0
+                              ? 'text-slate-700 cursor-not-allowed'
+                              : 'hover:bg-slate-800 text-slate-300 hover:text-white cursor-pointer'
+                          }`}
+                          title="Move Earlier in List"
                         >
-                          <ChevronsUp className="w-3.5 h-3.5" />
+                          <ArrowUp className="w-3.5 h-3.5" />
                         </button>
-                      )}
-                      <button
-                        onClick={() => {
-                          moveGallery(idx, 'up');
-                          showToast(`Moved "${item.title}" forward.`);
-                        }}
-                        disabled={idx === 0}
-                        className={`p-1.5 rounded-lg transition-colors ${
-                          idx === 0
-                            ? 'text-slate-700 cursor-not-allowed'
-                            : 'hover:bg-slate-800 text-slate-300 hover:text-white cursor-pointer'
-                        }`}
-                        title="Move Earlier in List"
-                      >
-                        <ArrowUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          moveGallery(idx, 'down');
-                          showToast(`Moved "${item.title}" backward.`);
-                        }}
-                        disabled={idx === gallery.length - 1}
-                        className={`p-1.5 rounded-lg transition-colors ${
-                          idx === gallery.length - 1
-                            ? 'text-slate-700 cursor-not-allowed'
-                            : 'hover:bg-slate-800 text-slate-300 hover:text-white cursor-pointer'
-                        }`}
-                        title="Move Later in List"
-                      >
-                        <ArrowDown className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                        <button
+                          onClick={() => {
+                            moveGallery(idx, 'down');
+                            showToast(`Moved "${item.title}" backward.`);
+                          }}
+                          disabled={idx === gallery.length - 1}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            idx === gallery.length - 1
+                              ? 'text-slate-700 cursor-not-allowed'
+                              : 'hover:bg-slate-800 text-slate-300 hover:text-white cursor-pointer'
+                          }`}
+                          title="Move Later in List"
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
 
-                    {/* Edit & Delete */}
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => openEditGallery(item)}
-                        className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-blue-600 text-slate-200 hover:text-white text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
-                      >
-                        <Edit3 className="w-3 h-3" />
-                        <span>Edit</span>
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirm({ type: 'gallery', id: item.id, title: item.title })}
-                        className="p-1.5 rounded-xl bg-slate-800 hover:bg-rose-600 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {/* Edit & Delete */}
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => openEditGallery(item)}
+                          className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-blue-600 text-slate-200 hover:text-white text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirm({ type: 'gallery', id: item.id, title: item.title })}
+                          className="p-1.5 rounded-xl bg-slate-800 hover:bg-rose-600 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
 
         {/* TAB 3: TEAM MANAGEMENT */}
         {activeTab === 'team' && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-5">
-            {team.map((mem, idx) => (
-              <div
-                key={mem.id}
-                className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden p-4 flex flex-col items-center justify-between text-center shadow-lg group hover:border-slate-700 transition-colors"
-              >
-                <div className="flex flex-col items-center w-full">
-                  <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-slate-950 mb-3 border border-slate-800 flex items-center justify-center">
-                    <img
-                      src={mem.image}
-                      alt={mem.name}
-                      onError={(e) => {
-                        e.currentTarget.onerror = null;
-                        e.currentTarget.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80';
-                      }}
-                      style={{ objectPosition: mem.objectPosition || 'center' }}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute top-2 left-2">
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                        idx === 0 
-                          ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/30' 
-                          : 'bg-slate-950/80 text-slate-300 border border-slate-700'
-                      }`}>
-                        {idx === 0 ? '★ Lead' : `#${idx + 1}`}
-                      </span>
-                    </div>
-                  </div>
-                  <h3 className="font-bold text-sm text-white line-clamp-1 text-center">{mem.name}</h3>
-                  <p className="text-xs text-blue-400 font-medium line-clamp-1 mb-2 text-center">{mem.position}</p>
-                </div>
+          <div className="space-y-6">
+            <div className="flex items-center justify-between bg-slate-900/60 border border-slate-800/80 px-4 py-3 rounded-2xl text-xs text-slate-400 backdrop-blur-xs">
+              <div className="flex items-center gap-2">
+                <GripVertical className="w-4 h-4 text-yellow-400 shrink-0" />
+                <span><strong className="text-slate-200">Drag & Drop</strong> any team card to rearrange leadership and team order on the live website!</span>
+              </div>
+              <span className="text-[11px] font-mono text-blue-400 font-semibold">{team.length} Members</span>
+            </div>
 
-                <div className="pt-3 border-t border-slate-800 flex flex-col gap-2 w-full">
-                  {/* Move Team Order Buttons */}
-                  <div className="flex items-center justify-center gap-1 bg-slate-950/60 p-1 rounded-xl border border-slate-800/80 w-full">
-                    {idx > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-5">
+              {team.map((mem, idx) => (
+                <div
+                  key={mem.id}
+                  draggable
+                  onDragStart={(e) => {
+                    setDraggedTeamIdx(idx);
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', String(idx));
+                  }}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    setDragOverTeamIdx(idx);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverTeamIdx === idx) setDragOverTeamIdx(null);
+                  }}
+                  onDragEnd={() => {
+                    setDraggedTeamIdx(null);
+                    setDragOverTeamIdx(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    handleDropTeam(idx);
+                  }}
+                  className={`bg-slate-900 border rounded-3xl overflow-hidden p-4 flex flex-col items-center justify-between text-center shadow-lg transition-all duration-200 cursor-grab active:cursor-grabbing select-none ${
+                    draggedTeamIdx === idx
+                      ? 'opacity-35 scale-95 border-dashed border-blue-500 ring-2 ring-blue-500/50'
+                      : dragOverTeamIdx === idx
+                      ? 'border-yellow-400 ring-4 ring-yellow-400/50 scale-[1.03] bg-slate-800/95 shadow-2xl z-20'
+                      : 'border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex flex-col items-center w-full">
+                    <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-slate-950 mb-3 border border-slate-800 flex items-center justify-center">
+                      <img
+                        src={mem.image}
+                        alt={mem.name}
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80';
+                        }}
+                        style={{ objectPosition: mem.objectPosition || 'center' }}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 pointer-events-none"
+                      />
+                      <div className="absolute top-2 left-2 flex items-center gap-1">
+                        <div className="p-1 rounded-md bg-slate-950/80 text-slate-300 backdrop-blur-xs" title="Drag to reorder">
+                          <GripVertical className="w-3 h-3 text-yellow-400" />
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                          idx === 0 
+                            ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/30' 
+                            : 'bg-slate-950/80 text-slate-300 border border-slate-700'
+                        }`}>
+                          {idx === 0 ? '★ Lead' : `#${idx + 1}`}
+                        </span>
+                      </div>
+                    </div>
+                    <h3 className="font-bold text-sm text-white line-clamp-1 text-center">{mem.name}</h3>
+                    <p className="text-xs text-blue-400 font-medium line-clamp-1 mb-2 text-center">{mem.position}</p>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-800 flex flex-col gap-2 w-full">
+                    {/* Move Team Order Buttons */}
+                    <div className="flex items-center justify-center gap-1 bg-slate-950/60 p-1 rounded-xl border border-slate-800/80 w-full">
+                      {idx > 0 && (
+                        <button
+                          onClick={() => {
+                            pinToTopTeam(mem.id);
+                            showToast(`Pinned "${mem.name}" to #1 (Lead position)!`);
+                          }}
+                          className="p-1 rounded-lg hover:bg-amber-400/20 text-slate-400 hover:text-amber-300 transition-colors cursor-pointer"
+                          title="Make #1 Lead"
+                        >
+                          <ChevronsUp className="w-3 h-3" />
+                        </button>
+                      )}
                       <button
                         onClick={() => {
-                          pinToTopTeam(mem.id);
-                          showToast(`Pinned "${mem.name}" to #1 (Lead position)!`);
+                          moveTeam(idx, 'up');
+                          showToast(`Moved "${mem.name}" forward.`);
                         }}
-                        className="p-1 rounded-lg hover:bg-amber-400/20 text-slate-400 hover:text-amber-300 transition-colors cursor-pointer"
-                        title="Make #1 Lead"
+                        disabled={idx === 0}
+                        className={`p-1 rounded-lg transition-colors ${
+                          idx === 0 ? 'text-slate-700' : 'hover:bg-slate-800 text-slate-300 cursor-pointer'
+                        }`}
+                        title="Move Forward"
                       >
-                        <ChevronsUp className="w-3 h-3" />
+                        <ArrowUp className="w-3 h-3" />
                       </button>
-                    )}
-                    <button
-                      onClick={() => {
-                        moveTeam(idx, 'up');
-                        showToast(`Moved "${mem.name}" forward.`);
-                      }}
-                      disabled={idx === 0}
-                      className={`p-1 rounded-lg transition-colors ${
-                        idx === 0 ? 'text-slate-700' : 'hover:bg-slate-800 text-slate-300 cursor-pointer'
-                      }`}
-                      title="Move Forward"
-                    >
-                      <ArrowUp className="w-3 h-3" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        moveTeam(idx, 'down');
-                        showToast(`Moved "${mem.name}" backward.`);
-                      }}
-                      disabled={idx === team.length - 1}
-                      className={`p-1 rounded-lg transition-colors ${
-                        idx === team.length - 1 ? 'text-slate-700' : 'hover:bg-slate-800 text-slate-300 cursor-pointer'
-                      }`}
-                      title="Move Backward"
-                    >
-                      <ArrowDown className="w-3 h-3" />
-                    </button>
-                  </div>
+                      <button
+                        onClick={() => {
+                          moveTeam(idx, 'down');
+                          showToast(`Moved "${mem.name}" backward.`);
+                        }}
+                        disabled={idx === team.length - 1}
+                        className={`p-1 rounded-lg transition-colors ${
+                          idx === team.length - 1 ? 'text-slate-700' : 'hover:bg-slate-800 text-slate-300 cursor-pointer'
+                        }`}
+                        title="Move Backward"
+                      >
+                        <ArrowDown className="w-3 h-3" />
+                      </button>
+                    </div>
 
-                  <div className="flex items-center justify-between w-full">
-                    <span className="text-[10px] font-mono text-slate-500">#{mem.id}</span>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => openEditTeam(mem)}
-                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                        title="Edit Member"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirm({ type: 'team', id: mem.id, title: mem.name })}
-                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-600 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                        title="Delete Member"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-[10px] font-mono text-slate-500">#{mem.id}</span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => openEditTeam(mem)}
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                          title="Edit Member"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirm({ type: 'team', id: mem.id, title: mem.name })}
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-600 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                          title="Delete Member"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
