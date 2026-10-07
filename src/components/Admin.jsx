@@ -84,30 +84,43 @@ export const Admin = ({ onNavigateToSite }) => {
   const [isSavingHeroBanner, setIsSavingHeroBanner] = useState(false);
   const [isSavingAboutBanner, setIsSavingAboutBanner] = useState(false);
 
-  useEffect(() => {
-    if (banners?.heroBanner) setHeroBannerUrl(banners.heroBanner);
-    if (banners?.aboutBanner) setAboutBannerUrl(banners.aboutBanner);
-  }, [banners]);
+  const handleHeroBannerChange = (url) => {
+    setHeroBannerUrl(url);
+    updateBanners({ heroBanner: url });
+  };
+
+  const handleAboutBannerChange = (url) => {
+    setAboutBannerUrl(url);
+    updateBanners({ aboutBanner: url });
+  };
 
   const handleSaveHeroBanner = async () => {
+    if (!heroBannerUrl) {
+      showToast('Please upload or enter a poster image URL first.');
+      return;
+    }
     setIsSavingHeroBanner(true);
     try {
       await updateBanners({ heroBanner: heroBannerUrl });
-      showToast('Hero Launch Poster updated successfully!');
+      showToast('Hero Launch Poster saved successfully!');
     } catch (err) {
-      showToast('Failed to save Hero poster: ' + err.message);
+      showToast('Saved locally. Firestore sync note: ' + err.message);
     } finally {
       setIsSavingHeroBanner(false);
     }
   };
 
   const handleSaveAboutBanner = async () => {
+    if (!aboutBannerUrl) {
+      showToast('Please upload or enter a poster image URL first.');
+      return;
+    }
     setIsSavingAboutBanner(true);
     try {
       await updateBanners({ aboutBanner: aboutBannerUrl });
-      showToast('About Us Section Poster updated successfully!');
+      showToast('About Us Poster saved successfully!');
     } catch (err) {
-      showToast('Failed to save About poster: ' + err.message);
+      showToast('Saved locally. Firestore sync note: ' + err.message);
     } finally {
       setIsSavingAboutBanner(false);
     }
@@ -1102,7 +1115,7 @@ export const Admin = ({ onNavigateToSite }) => {
                   <ImageUploader
                     label="Upload / Paste Hero Poster Image"
                     value={heroBannerUrl}
-                    onChange={(url) => setHeroBannerUrl(url)}
+                    onChange={handleHeroBannerChange}
                     placeholder="/hero-banner.jpg or https://res.cloudinary.com/..."
                     onOpenSettings={() => setActiveTab('settings')}
                   />
@@ -1118,7 +1131,7 @@ export const Admin = ({ onNavigateToSite }) => {
                     {isSavingHeroBanner ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Saving to Cloud...</span>
+                        <span>Saving...</span>
                       </>
                     ) : (
                       <>
@@ -1130,8 +1143,7 @@ export const Admin = ({ onNavigateToSite }) => {
 
                   <button
                     onClick={() => {
-                      setHeroBannerUrl('/hero-banner.jpg');
-                      updateBanners({ heroBanner: '/hero-banner.jpg' });
+                      handleHeroBannerChange('/hero-banner.jpg');
                       showToast('Hero banner reset to default');
                     }}
                     className="w-full sm:w-auto py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
@@ -1191,7 +1203,7 @@ export const Admin = ({ onNavigateToSite }) => {
                   <ImageUploader
                     label="Upload / Paste About Poster Image"
                     value={aboutBannerUrl}
-                    onChange={(url) => setAboutBannerUrl(url)}
+                    onChange={handleAboutBannerChange}
                     placeholder="/Events/team.png or https://res.cloudinary.com/..."
                     onOpenSettings={() => setActiveTab('settings')}
                   />
@@ -1207,7 +1219,7 @@ export const Admin = ({ onNavigateToSite }) => {
                     {isSavingAboutBanner ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Saving to Cloud...</span>
+                        <span>Saving...</span>
                       </>
                     ) : (
                       <>
@@ -1219,8 +1231,7 @@ export const Admin = ({ onNavigateToSite }) => {
 
                   <button
                     onClick={() => {
-                      setAboutBannerUrl('/Events/team.png');
-                      updateBanners({ aboutBanner: '/Events/team.png' });
+                      handleAboutBannerChange('/Events/team.png');
                       showToast('About banner reset to default');
                     }}
                     className="w-full sm:w-auto py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"

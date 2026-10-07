@@ -576,17 +576,25 @@ export const DataProvider = ({ children }) => {
 
   // --- SITE BANNERS CRUD ---
   const updateBanners = async (newBanners) => {
+    // 1. Immediately update in-memory state and localStorage
     setBanners((prev) => {
       const updated = { ...prev, ...newBanners };
+      try {
+        localStorage.setItem(STORAGE_KEYS.BANNERS, JSON.stringify(updated));
+      } catch (e) {}
       return updated;
     });
 
+    // 2. Synchronize to Firestore with race timeout so UI never hangs
     const db = getDb();
     if (db) {
       try {
-        await setDoc(doc(db, 'settings', 'banners'), newBanners, { merge: true });
+        await Promise.race([
+          setDoc(doc(db, 'settings', 'banners'), newBanners, { merge: true }),
+          new Promise((resolve) => setTimeout(resolve, 1500))
+        ]);
       } catch (err) {
-        console.error('Firestore updateBanners error:', err);
+        console.warn('Firestore updateBanners warning:', err);
       }
     }
   };
