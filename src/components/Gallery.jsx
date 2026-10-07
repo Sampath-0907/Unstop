@@ -91,6 +91,10 @@ export const Gallery = () => {
                   <img
                     src={item.image}
                     alt={item.title}
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80';
+                    }}
                     className="w-full h-full object-cover object-center group-hover:scale-108 transition-transform duration-700"
                     loading="lazy"
                   />

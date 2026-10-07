@@ -279,7 +279,10 @@ export const Admin = ({ onNavigateToSite }) => {
     };
 
     if (editingEvent) {
-      updateEvent(editingEvent.id, payload);
+      updateEvent(editingEvent.id, {
+        ...payload,
+        order: typeof editingEvent.order === 'number' ? editingEvent.order : undefined,
+      });
       showToast('Event updated successfully!');
     } else {
       addEvent(payload);
@@ -375,7 +378,10 @@ export const Admin = ({ onNavigateToSite }) => {
     };
 
     if (editingGallery) {
-      updateGalleryItem(editingGallery.id, payload);
+      updateGalleryItem(editingGallery.id, {
+        ...payload,
+        order: typeof editingGallery.order === 'number' ? editingGallery.order : undefined,
+      });
       showToast('Gallery album updated!');
     } else {
       addGalleryItem(payload);
@@ -461,7 +467,10 @@ export const Admin = ({ onNavigateToSite }) => {
   const handleSaveTeam = (e) => {
     e.preventDefault();
     if (editingMember) {
-      updateTeamMember(editingMember.id, teamForm);
+      updateTeamMember(editingMember.id, {
+        ...teamForm,
+        order: typeof editingMember.order === 'number' ? editingMember.order : undefined,
+      });
       showToast('Team member updated!');
     } else {
       addTeamMember(teamForm);

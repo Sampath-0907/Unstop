@@ -53,28 +53,51 @@ const mergeWithDefaults = (defaults, cloudItems) => {
   const map = new Map();
   // 1. Seed with baseline initial defaults, setting explicit order = index
   defaults.forEach((item, index) => {
-    map.set(String(item.id), { order: index, ...item });
+    map.set(String(item.id), {
+      ...item,
+      id: String(item.id),
+      order: typeof item.order === 'number' && !isNaN(item.order) ? item.order : index
+    });
   });
 
   // 2. Overlay cloud records (respecting explicit _deleted markers)
   if (Array.isArray(cloudItems)) {
     cloudItems.forEach((cloudItem) => {
+      if (!cloudItem || typeof cloudItem !== 'object') return;
       const id = String(cloudItem.id);
       if (cloudItem._deleted) {
         map.delete(id);
       } else {
         const existing = map.get(id) || {};
-        map.set(id, { ...existing, ...cloudItem });
+        
+        // Preserve order if cloudItem doesn't specify one
+        const finalOrder = (typeof cloudItem.order === 'number' && !isNaN(cloudItem.order))
+          ? cloudItem.order
+          : ((typeof existing.order === 'number' && !isNaN(existing.order)) ? existing.order : map.size);
+
+        // Preserve image if cloudItem.image is empty or undefined
+        const finalImage = (cloudItem.image && String(cloudItem.image).trim() !== '')
+          ? cloudItem.image
+          : (existing.image || '');
+
+        map.set(id, {
+          ...existing,
+          ...cloudItem,
+          id: id,
+          order: finalOrder,
+          image: finalImage,
+        });
       }
     });
   }
 
   const result = Array.from(map.values());
-  // Sort strictly by .order ascending (fallback to ID ascending)
+  // Sort strictly by .order ascending (fallback to numeric ID ascending)
   result.sort((a, b) => {
-    const orderA = typeof a.order === 'number' ? a.order : (Number(a.id) || 0);
-    const orderB = typeof b.order === 'number' ? b.order : (Number(b.id) || 0);
-    return orderA - orderB;
+    const orderA = typeof a.order === 'number' && !isNaN(a.order) ? a.order : (Number(a.id) || 0);
+    const orderB = typeof b.order === 'number' && !isNaN(b.order) ? b.order : (Number(b.id) || 0);
+    if (orderA !== orderB) return orderA - orderB;
+    return (Number(a.id) || 0) - (Number(b.id) || 0);
   });
 
   return result;
@@ -382,12 +405,15 @@ export const DataProvider = ({ children }) => {
   // --- EVENTS CRUD ---
   const addEvent = async (eventData) => {
     const newId = events.length > 0 ? Math.max(...events.map((e) => Number(e.id) || 0)) + 1 : 1;
-    const newEvent = { ...eventData, id: String(newId) };
+    const newEvent = { ...eventData, id: String(newId), order: 0 };
     
-    // Update local state
-    setEvents((prev) => [newEvent, ...prev]);
+    // Prepend and re-index orders
+    const updated = [newEvent, ...events.map((e, idx) => ({ ...e, order: idx + 1 }))];
+    setEvents(updated);
+    try {
+      localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(updated));
+    } catch (e) {}
 
-    // Push to Firestore if connected
     const db = getDb();
     if (db) {
       try {
@@ -401,8 +427,29 @@ export const DataProvider = ({ children }) => {
   };
 
   const updateEvent = async (id, updatedFields) => {
+    let savedItem = null;
     setEvents((prev) => {
-      const updated = prev.map((e) => (String(e.id) === String(id) ? { ...e, ...updatedFields } : e));
+      const updated = prev.map((e) => {
+        if (String(e.id) === String(id)) {
+          const finalOrder = (typeof updatedFields.order === 'number' && !isNaN(updatedFields.order))
+            ? updatedFields.order
+            : ((typeof e.order === 'number' && !isNaN(e.order)) ? e.order : 0);
+          const finalImage = (updatedFields.image && String(updatedFields.image).trim() !== '')
+            ? updatedFields.image
+            : (e.image || '');
+
+          const merged = {
+            ...e,
+            ...updatedFields,
+            id: String(id),
+            order: finalOrder,
+            image: finalImage,
+          };
+          savedItem = merged;
+          return merged;
+        }
+        return e;
+      });
       try {
         localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(updated));
       } catch (e) {}
@@ -410,9 +457,9 @@ export const DataProvider = ({ children }) => {
     });
 
     const db = getDb();
-    if (db) {
+    if (db && savedItem) {
       try {
-        await setDoc(doc(db, 'events', String(id)), updatedFields, { merge: true });
+        await setDoc(doc(db, 'events', String(id)), savedItem, { merge: true });
       } catch (err) {
         console.error('Firestore updateEvent error:', err);
       }
@@ -442,13 +489,11 @@ export const DataProvider = ({ children }) => {
   const addGalleryItem = async (galleryItemData) => {
     const newId = gallery.length > 0 ? Math.max(...gallery.map((g) => Number(g.id) || 0)) + 1 : 1;
     const newItem = { ...galleryItemData, id: String(newId), order: 0 };
-    setGallery((prev) => {
-      const updated = [newItem, ...prev.map((g, idx) => ({ ...g, order: idx + 1 }))];
-      try {
-        localStorage.setItem(STORAGE_KEYS.GALLERY, JSON.stringify(updated));
-      } catch (e) {}
-      return updated;
-    });
+    const updated = [newItem, ...gallery.map((g, idx) => ({ ...g, order: idx + 1 }))];
+    setGallery(updated);
+    try {
+      localStorage.setItem(STORAGE_KEYS.GALLERY, JSON.stringify(updated));
+    } catch (e) {}
 
     const db = getDb();
     if (db) {
@@ -463,8 +508,29 @@ export const DataProvider = ({ children }) => {
   };
 
   const updateGalleryItem = async (id, updatedFields) => {
+    let savedItem = null;
     setGallery((prev) => {
-      const updated = prev.map((g) => (String(g.id) === String(id) ? { ...g, ...updatedFields } : g));
+      const updated = prev.map((g) => {
+        if (String(g.id) === String(id)) {
+          const finalOrder = (typeof updatedFields.order === 'number' && !isNaN(updatedFields.order))
+            ? updatedFields.order
+            : ((typeof g.order === 'number' && !isNaN(g.order)) ? g.order : 0);
+          const finalImage = (updatedFields.image && String(updatedFields.image).trim() !== '')
+            ? updatedFields.image
+            : (g.image || '');
+
+          const merged = {
+            ...g,
+            ...updatedFields,
+            id: String(id),
+            order: finalOrder,
+            image: finalImage,
+          };
+          savedItem = merged;
+          return merged;
+        }
+        return g;
+      });
       try {
         localStorage.setItem(STORAGE_KEYS.GALLERY, JSON.stringify(updated));
       } catch (e) {}
@@ -472,9 +538,9 @@ export const DataProvider = ({ children }) => {
     });
 
     const db = getDb();
-    if (db) {
+    if (db && savedItem) {
       try {
-        await setDoc(doc(db, 'gallery', String(id)), updatedFields, { merge: true });
+        await setDoc(doc(db, 'gallery', String(id)), savedItem, { merge: true });
       } catch (err) {
         console.error('Firestore updateGalleryItem error:', err);
       }
@@ -504,13 +570,11 @@ export const DataProvider = ({ children }) => {
   const addTeamMember = async (memberData) => {
     const newId = team.length > 0 ? Math.max(...team.map((t) => Number(t.id) || 0)) + 1 : 1;
     const newMember = { ...memberData, id: String(newId), order: team.length };
-    setTeam((prev) => {
-      const updated = [...prev, newMember];
-      try {
-        localStorage.setItem(STORAGE_KEYS.TEAM, JSON.stringify(updated));
-      } catch (e) {}
-      return updated;
-    });
+    const updated = [...team, newMember];
+    setTeam(updated);
+    try {
+      localStorage.setItem(STORAGE_KEYS.TEAM, JSON.stringify(updated));
+    } catch (e) {}
 
     const db = getDb();
     if (db) {
@@ -525,8 +589,29 @@ export const DataProvider = ({ children }) => {
   };
 
   const updateTeamMember = async (id, updatedFields) => {
+    let savedItem = null;
     setTeam((prev) => {
-      const updated = prev.map((t) => (String(t.id) === String(id) ? { ...t, ...updatedFields } : t));
+      const updated = prev.map((t) => {
+        if (String(t.id) === String(id)) {
+          const finalOrder = (typeof updatedFields.order === 'number' && !isNaN(updatedFields.order))
+            ? updatedFields.order
+            : ((typeof t.order === 'number' && !isNaN(t.order)) ? t.order : 0);
+          const finalImage = (updatedFields.image && String(updatedFields.image).trim() !== '')
+            ? updatedFields.image
+            : (t.image || '');
+
+          const merged = {
+            ...t,
+            ...updatedFields,
+            id: String(id),
+            order: finalOrder,
+            image: finalImage,
+          };
+          savedItem = merged;
+          return merged;
+        }
+        return t;
+      });
       try {
         localStorage.setItem(STORAGE_KEYS.TEAM, JSON.stringify(updated));
       } catch (e) {}
@@ -534,9 +619,9 @@ export const DataProvider = ({ children }) => {
     });
 
     const db = getDb();
-    if (db) {
+    if (db && savedItem) {
       try {
-        await setDoc(doc(db, 'team', String(id)), updatedFields, { merge: true });
+        await setDoc(doc(db, 'team', String(id)), savedItem, { merge: true });
       } catch (err) {
         console.error('Firestore updateTeamMember error:', err);
       }
