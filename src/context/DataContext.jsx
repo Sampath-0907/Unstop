@@ -51,9 +51,9 @@ const DEFAULT_FIREBASE = {
 // Helper to merge cloud items over baseline default items without losing untouched defaults
 const mergeWithDefaults = (defaults, cloudItems) => {
   const map = new Map();
-  // 1. Seed with baseline initial defaults
-  defaults.forEach((item) => {
-    map.set(String(item.id), { ...item });
+  // 1. Seed with baseline initial defaults, setting explicit order = index
+  defaults.forEach((item, index) => {
+    map.set(String(item.id), { order: index, ...item });
   });
 
   // 2. Overlay cloud records (respecting explicit _deleted markers)
@@ -69,7 +69,15 @@ const mergeWithDefaults = (defaults, cloudItems) => {
     });
   }
 
-  return Array.from(map.values());
+  const result = Array.from(map.values());
+  // Sort strictly by .order ascending (fallback to ID ascending)
+  result.sort((a, b) => {
+    const orderA = typeof a.order === 'number' ? a.order : (Number(a.id) || 0);
+    const orderB = typeof b.order === 'number' ? b.order : (Number(b.id) || 0);
+    return orderA - orderB;
+  });
+
+  return result;
 };
 
 export const DataProvider = ({ children }) => {
@@ -83,9 +91,9 @@ export const DataProvider = ({ children }) => {
           return mergeWithDefaults(initialEvents, parsed);
         }
       }
-      return initialEvents;
+      return initialEvents.map((item, idx) => ({ order: idx, ...item }));
     } catch {
-      return initialEvents;
+      return initialEvents.map((item, idx) => ({ order: idx, ...item }));
     }
   });
 
@@ -98,9 +106,9 @@ export const DataProvider = ({ children }) => {
           return mergeWithDefaults(initialGallery, parsed);
         }
       }
-      return initialGallery;
+      return initialGallery.map((item, idx) => ({ order: idx, ...item }));
     } catch {
-      return initialGallery;
+      return initialGallery.map((item, idx) => ({ order: idx, ...item }));
     }
   });
 
@@ -113,9 +121,9 @@ export const DataProvider = ({ children }) => {
           return mergeWithDefaults(initialTeam, parsed);
         }
       }
-      return initialTeam;
+      return initialTeam.map((item, idx) => ({ order: idx, ...item }));
     } catch {
-      return initialTeam;
+      return initialTeam.map((item, idx) => ({ order: idx, ...item }));
     }
   });
 
@@ -240,16 +248,6 @@ export const DataProvider = ({ children }) => {
 
     setIsFirebaseConnected(true);
 
-    // Sorting helper prioritizing custom order, fallback to ID
-    const sortByCustomOrder = (a, b) => {
-      if (typeof a.order === 'number' && typeof b.order === 'number') {
-        return a.order - b.order;
-      }
-      if (typeof a.order === 'number') return -1;
-      if (typeof b.order === 'number') return 1;
-      return Number(b.id) - Number(a.id);
-    };
-
     // 1. Real-time Events Listener
     const unsubEvents = onSnapshot(
       collection(db, 'events'),
@@ -257,10 +255,9 @@ export const DataProvider = ({ children }) => {
         if (!snapshot.empty) {
           const cloudEvents = snapshot.docs.map((d) => ({ ...d.data(), id: d.id }));
           const merged = mergeWithDefaults(initialEvents, cloudEvents);
-          merged.sort(sortByCustomOrder);
           setEvents(merged);
         } else {
-          setEvents(initialEvents);
+          setEvents(initialEvents.map((item, idx) => ({ order: idx, ...item })));
         }
       },
       (error) => {
@@ -275,10 +272,9 @@ export const DataProvider = ({ children }) => {
         if (!snapshot.empty) {
           const cloudGallery = snapshot.docs.map((d) => ({ ...d.data(), id: d.id }));
           const merged = mergeWithDefaults(initialGallery, cloudGallery);
-          merged.sort(sortByCustomOrder);
           setGallery(merged);
         } else {
-          setGallery(initialGallery);
+          setGallery(initialGallery.map((item, idx) => ({ order: idx, ...item })));
         }
       },
       (error) => {
@@ -293,10 +289,9 @@ export const DataProvider = ({ children }) => {
         if (!snapshot.empty) {
           const cloudTeam = snapshot.docs.map((d) => ({ ...d.data(), id: d.id }));
           const merged = mergeWithDefaults(initialTeam, cloudTeam);
-          merged.sort(sortByCustomOrder);
           setTeam(merged);
         } else {
-          setTeam(initialTeam);
+          setTeam(initialTeam.map((item, idx) => ({ order: idx, ...item })));
         }
       },
       (error) => {
@@ -406,9 +401,13 @@ export const DataProvider = ({ children }) => {
   };
 
   const updateEvent = async (id, updatedFields) => {
-    setEvents((prev) =>
-      prev.map((e) => (String(e.id) === String(id) ? { ...e, ...updatedFields } : e))
-    );
+    setEvents((prev) => {
+      const updated = prev.map((e) => (String(e.id) === String(id) ? { ...e, ...updatedFields } : e));
+      try {
+        localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
 
     const db = getDb();
     if (db) {
@@ -421,7 +420,13 @@ export const DataProvider = ({ children }) => {
   };
 
   const deleteEvent = async (id) => {
-    setEvents((prev) => prev.filter((e) => String(e.id) !== String(id)));
+    setEvents((prev) => {
+      const updated = prev.filter((e) => String(e.id) !== String(id));
+      try {
+        localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
 
     const db = getDb();
     if (db) {
@@ -436,8 +441,14 @@ export const DataProvider = ({ children }) => {
   // --- GALLERY CRUD ---
   const addGalleryItem = async (galleryItemData) => {
     const newId = gallery.length > 0 ? Math.max(...gallery.map((g) => Number(g.id) || 0)) + 1 : 1;
-    const newItem = { ...galleryItemData, id: String(newId) };
-    setGallery((prev) => [newItem, ...prev]);
+    const newItem = { ...galleryItemData, id: String(newId), order: 0 };
+    setGallery((prev) => {
+      const updated = [newItem, ...prev.map((g, idx) => ({ ...g, order: idx + 1 }))];
+      try {
+        localStorage.setItem(STORAGE_KEYS.GALLERY, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
 
     const db = getDb();
     if (db) {
@@ -452,9 +463,13 @@ export const DataProvider = ({ children }) => {
   };
 
   const updateGalleryItem = async (id, updatedFields) => {
-    setGallery((prev) =>
-      prev.map((g) => (String(g.id) === String(id) ? { ...g, ...updatedFields } : g))
-    );
+    setGallery((prev) => {
+      const updated = prev.map((g) => (String(g.id) === String(id) ? { ...g, ...updatedFields } : g));
+      try {
+        localStorage.setItem(STORAGE_KEYS.GALLERY, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
 
     const db = getDb();
     if (db) {
@@ -467,7 +482,13 @@ export const DataProvider = ({ children }) => {
   };
 
   const deleteGalleryItem = async (id) => {
-    setGallery((prev) => prev.filter((g) => String(g.id) !== String(id)));
+    setGallery((prev) => {
+      const updated = prev.filter((g) => String(g.id) !== String(id));
+      try {
+        localStorage.setItem(STORAGE_KEYS.GALLERY, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
 
     const db = getDb();
     if (db) {
@@ -482,8 +503,14 @@ export const DataProvider = ({ children }) => {
   // --- TEAM CRUD ---
   const addTeamMember = async (memberData) => {
     const newId = team.length > 0 ? Math.max(...team.map((t) => Number(t.id) || 0)) + 1 : 1;
-    const newMember = { ...memberData, id: String(newId) };
-    setTeam((prev) => [...prev, newMember]);
+    const newMember = { ...memberData, id: String(newId), order: team.length };
+    setTeam((prev) => {
+      const updated = [...prev, newMember];
+      try {
+        localStorage.setItem(STORAGE_KEYS.TEAM, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
 
     const db = getDb();
     if (db) {
@@ -498,9 +525,13 @@ export const DataProvider = ({ children }) => {
   };
 
   const updateTeamMember = async (id, updatedFields) => {
-    setTeam((prev) =>
-      prev.map((t) => (String(t.id) === String(id) ? { ...t, ...updatedFields } : t))
-    );
+    setTeam((prev) => {
+      const updated = prev.map((t) => (String(t.id) === String(id) ? { ...t, ...updatedFields } : t));
+      try {
+        localStorage.setItem(STORAGE_KEYS.TEAM, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
 
     const db = getDb();
     if (db) {
@@ -513,7 +544,13 @@ export const DataProvider = ({ children }) => {
   };
 
   const deleteTeamMember = async (id) => {
-    setTeam((prev) => prev.filter((t) => String(t.id) !== String(id)));
+    setTeam((prev) => {
+      const updated = prev.filter((t) => String(t.id) !== String(id));
+      try {
+        localStorage.setItem(STORAGE_KEYS.TEAM, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
 
     const db = getDb();
     if (db) {
@@ -529,6 +566,10 @@ export const DataProvider = ({ children }) => {
   const reorderEvents = async (newOrderedList) => {
     const indexed = newOrderedList.map((item, idx) => ({ ...item, order: idx }));
     setEvents(indexed);
+    try {
+      localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(indexed));
+    } catch (e) {}
+
     const db = getDb();
     if (db) {
       try {
@@ -562,6 +603,10 @@ export const DataProvider = ({ children }) => {
   const reorderGallery = async (newOrderedList) => {
     const indexed = newOrderedList.map((item, idx) => ({ ...item, order: idx }));
     setGallery(indexed);
+    try {
+      localStorage.setItem(STORAGE_KEYS.GALLERY, JSON.stringify(indexed));
+    } catch (e) {}
+
     const db = getDb();
     if (db) {
       try {
@@ -595,6 +640,10 @@ export const DataProvider = ({ children }) => {
   const reorderTeam = async (newOrderedList) => {
     const indexed = newOrderedList.map((item, idx) => ({ ...item, order: idx }));
     setTeam(indexed);
+    try {
+      localStorage.setItem(STORAGE_KEYS.TEAM, JSON.stringify(indexed));
+    } catch (e) {}
+
     const db = getDb();
     if (db) {
       try {

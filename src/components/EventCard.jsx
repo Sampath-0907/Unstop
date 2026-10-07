@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, MapPin, Users, Trophy, ArrowRight, ExternalLink } from 'lucide-react';
 
 export const EventCard = ({ event, onViewDetails }) => {
   const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [event?.image, event?.id]);
 
   // Fallback pattern if image fails to load
   const fallbackBg = 'bg-gradient-to-br from-blue-700 via-indigo-800 to-slate-900';

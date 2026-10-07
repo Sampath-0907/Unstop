@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LinkedInIcon } from './Icons';
 
 export const TeamCard = ({ member }) => {
   const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [member?.image, member?.id]);
 
   // Generate initials for avatar fallback
   const initials = member.name
