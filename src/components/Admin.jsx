@@ -962,6 +962,10 @@ export const Admin = ({ onNavigateToSite }) => {
                     <img
                       src={mem.image}
                       alt={mem.name}
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80';
+                      }}
                       style={{ objectPosition: mem.objectPosition || 'center' }}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />

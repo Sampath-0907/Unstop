@@ -48,12 +48,42 @@ const DEFAULT_FIREBASE = {
   measurementId: "G-3H2BLKP8KM",
 };
 
+// Helper to merge cloud items over baseline default items without losing untouched defaults
+const mergeWithDefaults = (defaults, cloudItems) => {
+  const map = new Map();
+  // 1. Seed with baseline initial defaults
+  defaults.forEach((item) => {
+    map.set(String(item.id), { ...item });
+  });
+
+  // 2. Overlay cloud records (respecting explicit _deleted markers)
+  if (Array.isArray(cloudItems)) {
+    cloudItems.forEach((cloudItem) => {
+      const id = String(cloudItem.id);
+      if (cloudItem._deleted) {
+        map.delete(id);
+      } else {
+        const existing = map.get(id) || {};
+        map.set(id, { ...existing, ...cloudItem });
+      }
+    });
+  }
+
+  return Array.from(map.values());
+};
+
 export const DataProvider = ({ children }) => {
   // Local state with initial fallbacks
   const [events, setEvents] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.EVENTS);
-      return saved ? JSON.parse(saved) : initialEvents;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return mergeWithDefaults(initialEvents, parsed);
+        }
+      }
+      return initialEvents;
     } catch {
       return initialEvents;
     }
@@ -62,7 +92,13 @@ export const DataProvider = ({ children }) => {
   const [gallery, setGallery] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.GALLERY);
-      return saved ? JSON.parse(saved) : initialGallery;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return mergeWithDefaults(initialGallery, parsed);
+        }
+      }
+      return initialGallery;
     } catch {
       return initialGallery;
     }
@@ -71,7 +107,13 @@ export const DataProvider = ({ children }) => {
   const [team, setTeam] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.TEAM);
-      return saved ? JSON.parse(saved) : initialTeam;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return mergeWithDefaults(initialTeam, parsed);
+        }
+      }
+      return initialTeam;
     } catch {
       return initialTeam;
     }
@@ -214,8 +256,11 @@ export const DataProvider = ({ children }) => {
       (snapshot) => {
         if (!snapshot.empty) {
           const cloudEvents = snapshot.docs.map((d) => ({ ...d.data(), id: d.id }));
-          cloudEvents.sort(sortByCustomOrder);
-          setEvents(cloudEvents);
+          const merged = mergeWithDefaults(initialEvents, cloudEvents);
+          merged.sort(sortByCustomOrder);
+          setEvents(merged);
+        } else {
+          setEvents(initialEvents);
         }
       },
       (error) => {
@@ -229,8 +274,11 @@ export const DataProvider = ({ children }) => {
       (snapshot) => {
         if (!snapshot.empty) {
           const cloudGallery = snapshot.docs.map((d) => ({ ...d.data(), id: d.id }));
-          cloudGallery.sort(sortByCustomOrder);
-          setGallery(cloudGallery);
+          const merged = mergeWithDefaults(initialGallery, cloudGallery);
+          merged.sort(sortByCustomOrder);
+          setGallery(merged);
+        } else {
+          setGallery(initialGallery);
         }
       },
       (error) => {
@@ -244,8 +292,11 @@ export const DataProvider = ({ children }) => {
       (snapshot) => {
         if (!snapshot.empty) {
           const cloudTeam = snapshot.docs.map((d) => ({ ...d.data(), id: d.id }));
-          cloudTeam.sort(sortByCustomOrder);
-          setTeam(cloudTeam);
+          const merged = mergeWithDefaults(initialTeam, cloudTeam);
+          merged.sort(sortByCustomOrder);
+          setTeam(merged);
+        } else {
+          setTeam(initialTeam);
         }
       },
       (error) => {
@@ -375,7 +426,7 @@ export const DataProvider = ({ children }) => {
     const db = getDb();
     if (db) {
       try {
-        await deleteDoc(doc(db, 'events', String(id)));
+        await setDoc(doc(db, 'events', String(id)), { _deleted: true }, { merge: true });
       } catch (err) {
         console.error('Firestore deleteEvent error:', err);
       }
@@ -421,7 +472,7 @@ export const DataProvider = ({ children }) => {
     const db = getDb();
     if (db) {
       try {
-        await deleteDoc(doc(db, 'gallery', String(id)));
+        await setDoc(doc(db, 'gallery', String(id)), { _deleted: true }, { merge: true });
       } catch (err) {
         console.error('Firestore deleteGalleryItem error:', err);
       }
@@ -467,7 +518,7 @@ export const DataProvider = ({ children }) => {
     const db = getDb();
     if (db) {
       try {
-        await deleteDoc(doc(db, 'team', String(id)));
+        await setDoc(doc(db, 'team', String(id)), { _deleted: true }, { merge: true });
       } catch (err) {
         console.error('Firestore deleteTeamMember error:', err);
       }
