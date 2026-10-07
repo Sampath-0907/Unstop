@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Calendar, 
@@ -27,7 +27,10 @@ import {
   ArrowUp,
   ArrowDown,
   ChevronsUp,
-  Star
+  Star,
+  Image as ImageIcon,
+  Save,
+  RefreshCw
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { ImageUploader } from './ImageUploader';
@@ -38,6 +41,8 @@ export const Admin = ({ onNavigateToSite }) => {
     events,
     gallery,
     team,
+    banners,
+    updateBanners,
     isAuthenticated,
     login,
     logout,
@@ -72,6 +77,41 @@ export const Admin = ({ onNavigateToSite }) => {
 
   // Active navigation tab
   const [activeTab, setActiveTab] = useState('events');
+
+  // Site Banners state
+  const [heroBannerUrl, setHeroBannerUrl] = useState(banners?.heroBanner || '/hero-banner.jpg');
+  const [aboutBannerUrl, setAboutBannerUrl] = useState(banners?.aboutBanner || '/Events/team.png');
+  const [isSavingHeroBanner, setIsSavingHeroBanner] = useState(false);
+  const [isSavingAboutBanner, setIsSavingAboutBanner] = useState(false);
+
+  useEffect(() => {
+    if (banners?.heroBanner) setHeroBannerUrl(banners.heroBanner);
+    if (banners?.aboutBanner) setAboutBannerUrl(banners.aboutBanner);
+  }, [banners]);
+
+  const handleSaveHeroBanner = async () => {
+    setIsSavingHeroBanner(true);
+    try {
+      await updateBanners({ heroBanner: heroBannerUrl });
+      showToast('Hero Launch Poster updated successfully!');
+    } catch (err) {
+      showToast('Failed to save Hero poster: ' + err.message);
+    } finally {
+      setIsSavingHeroBanner(false);
+    }
+  };
+
+  const handleSaveAboutBanner = async () => {
+    setIsSavingAboutBanner(true);
+    try {
+      await updateBanners({ aboutBanner: aboutBannerUrl });
+      showToast('About Us Section Poster updated successfully!');
+    } catch (err) {
+      showToast('Failed to save About poster: ' + err.message);
+    } finally {
+      setIsSavingAboutBanner(false);
+    }
+  };
 
   // Image upload loading state
   const [isEventPhotoUploading, setIsEventPhotoUploading] = useState(false);
@@ -590,6 +630,18 @@ export const Admin = ({ onNavigateToSite }) => {
             </button>
 
             <button
+              onClick={() => setActiveTab('banners')}
+              className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === 'banners'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+                  : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <ImageIcon className="w-4 h-4" />
+              <span>Site Banners & Posters</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('settings')}
               className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${
                 activeTab === 'settings'
@@ -982,7 +1034,209 @@ export const Admin = ({ onNavigateToSite }) => {
           </div>
         )}
 
-        {/* TAB 4: SETTINGS & DATA BACKUP */}
+        {/* TAB 4: SITE BANNERS & POSTERS */}
+        {activeTab === 'banners' && (
+          <div className="space-y-8 max-w-5xl mx-auto w-full">
+            <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-6 sm:p-8 backdrop-blur-md">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-2xl bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold">
+                  <ImageIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white font-display">Site Banners & Promotional Posters</h2>
+                  <p className="text-xs text-slate-400">
+                    Upload and manage the headline promotional poster in the Hero section and the community banner in the About section.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              
+              {/* 1. HERO OFFICIAL LAUNCH BANNER CARD */}
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 flex flex-col justify-between space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-bold uppercase tracking-wider">
+                      Hero Section Poster
+                    </span>
+                    <span className="text-[11px] font-mono text-slate-400">Aspect 16:9</span>
+                  </div>
+
+                  <h3 className="text-lg font-bold text-white font-display">
+                    Official Campus Launch Poster
+                  </h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Displayed prominently next to "BUILD. LEARN. COMPETE." on the homepage.
+                  </p>
+
+                  {/* Live Preview Box */}
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
+                      Live Preview:
+                    </label>
+                    <div className="relative rounded-2xl overflow-hidden border border-slate-700 bg-slate-950 aspect-[16/9] shadow-inner group">
+                      <img
+                        src={heroBannerUrl || '/hero-banner.jpg'}
+                        alt="Hero Banner Preview"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1200&q=80';
+                        }}
+                        className="w-full h-full object-cover object-center"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent pointer-events-none" />
+                      <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-[10px] text-white">
+                        <span className="font-semibold flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                          Official Launch
+                        </span>
+                        <span className="bg-blue-600/80 px-2 py-0.5 rounded font-mono font-bold text-[9px]">
+                          #IgniteTheFuture
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Image Uploader Component */}
+                  <ImageUploader
+                    label="Upload / Paste Hero Poster Image"
+                    value={heroBannerUrl}
+                    onChange={(url) => setHeroBannerUrl(url)}
+                    placeholder="/hero-banner.jpg or https://res.cloudinary.com/..."
+                    onOpenSettings={() => setActiveTab('settings')}
+                  />
+                </div>
+
+                {/* Save & Reset Actions */}
+                <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center gap-3">
+                  <button
+                    onClick={handleSaveHeroBanner}
+                    disabled={isSavingHeroBanner}
+                    className="w-full sm:flex-1 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-blue-600/30"
+                  >
+                    {isSavingHeroBanner ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Saving to Cloud...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        <span>Save Hero Poster</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setHeroBannerUrl('/hero-banner.jpg');
+                      updateBanners({ heroBanner: '/hero-banner.jpg' });
+                      showToast('Hero banner reset to default');
+                    }}
+                    className="w-full sm:w-auto py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    title="Reset to default local path"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Reset</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. ABOUT US SECTION BANNER CARD */}
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 flex flex-col justify-between space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="px-3 py-1 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-xs font-bold uppercase tracking-wider">
+                      About Section Poster
+                    </span>
+                    <span className="text-[11px] font-mono text-slate-400">Aspect 4:3 / 16:9</span>
+                  </div>
+
+                  <h3 className="text-lg font-bold text-white font-display">
+                    About Community & Philosophy Poster
+                  </h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Displayed in the About Section alongside club mission pillars and core activities.
+                  </p>
+
+                  {/* Live Preview Box */}
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
+                      Live Preview:
+                    </label>
+                    <div className="relative rounded-2xl overflow-hidden border border-slate-700 bg-slate-950 aspect-[16/9] shadow-inner group">
+                      <img
+                        src={aboutBannerUrl || '/Events/team.png'}
+                        alt="About Banner Preview"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1200&q=80';
+                        }}
+                        className="w-full h-full object-cover object-center"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/30 to-transparent pointer-events-none" />
+                      <div className="absolute bottom-2 left-3 right-3 text-white space-y-0.5">
+                        <span className="inline-block px-1.5 py-0.5 rounded bg-yellow-400 text-slate-950 font-extrabold text-[8px] uppercase">
+                          Our Philosophy
+                        </span>
+                        <p className="text-[10px] font-bold truncate">
+                          "Learn together, Build together, Grow together."
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Image Uploader Component */}
+                  <ImageUploader
+                    label="Upload / Paste About Poster Image"
+                    value={aboutBannerUrl}
+                    onChange={(url) => setAboutBannerUrl(url)}
+                    placeholder="/Events/team.png or https://res.cloudinary.com/..."
+                    onOpenSettings={() => setActiveTab('settings')}
+                  />
+                </div>
+
+                {/* Save & Reset Actions */}
+                <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center gap-3">
+                  <button
+                    onClick={handleSaveAboutBanner}
+                    disabled={isSavingAboutBanner}
+                    className="w-full sm:flex-1 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-blue-600/30"
+                  >
+                    {isSavingAboutBanner ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Saving to Cloud...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        <span>Save About Poster</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setAboutBannerUrl('/Events/team.png');
+                      updateBanners({ aboutBanner: '/Events/team.png' });
+                      showToast('About banner reset to default');
+                    }}
+                    className="w-full sm:w-auto py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    title="Reset to default local path"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Reset</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: SETTINGS & DATA BACKUP */}
         {activeTab === 'settings' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto w-full">
 

@@ -23,6 +23,7 @@ const STORAGE_KEYS = {
   PASSCODE: 'unstop_admin_passcode_v1',
   CLOUDINARY: 'unstop_admin_cloudinary_v1',
   FIREBASE: 'unstop_admin_firebase_v1',
+  BANNERS: 'unstop_site_banners_v1',
 };
 
 const DEFAULT_PASSCODE = 'admin123';
@@ -30,6 +31,11 @@ const DEFAULT_PASSCODE = 'admin123';
 const DEFAULT_CLOUDINARY = {
   cloudName: 'dskmpnuzw',
   uploadPreset: 'Unstop',
+};
+
+const DEFAULT_BANNERS = {
+  heroBanner: '/hero-banner.jpg',
+  aboutBanner: '/Events/team.png',
 };
 
 const DEFAULT_FIREBASE = {
@@ -68,6 +74,15 @@ export const DataProvider = ({ children }) => {
       return saved ? JSON.parse(saved) : initialTeam;
     } catch {
       return initialTeam;
+    }
+  });
+
+  const [banners, setBanners] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.BANNERS);
+      return saved ? { ...DEFAULT_BANNERS, ...JSON.parse(saved) } : DEFAULT_BANNERS;
+    } catch {
+      return DEFAULT_BANNERS;
     }
   });
 
@@ -160,6 +175,12 @@ export const DataProvider = ({ children }) => {
     } catch (e) {}
   }, [team]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.BANNERS, JSON.stringify(banners));
+    } catch (e) {}
+  }, [banners]);
+
   // ============================================================================
   // FIREBASE FIRESTORE REAL-TIME SYNC
   // ============================================================================
@@ -232,10 +253,24 @@ export const DataProvider = ({ children }) => {
       }
     );
 
+    // 4. Real-time Banners Listener
+    const unsubBanners = onSnapshot(
+      doc(db, 'settings', 'banners'),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          setBanners((prev) => ({ ...prev, ...docSnap.data() }));
+        }
+      },
+      (error) => {
+        console.warn('Firestore Banners listener error:', error);
+      }
+    );
+
     return () => {
       unsubEvents();
       unsubGallery();
       unsubTeam();
+      unsubBanners();
     };
   }, [firebaseConfig]);
 
@@ -539,11 +574,29 @@ export const DataProvider = ({ children }) => {
     reorderTeam(updated);
   };
 
+  // --- SITE BANNERS CRUD ---
+  const updateBanners = async (newBanners) => {
+    setBanners((prev) => {
+      const updated = { ...prev, ...newBanners };
+      return updated;
+    });
+
+    const db = getDb();
+    if (db) {
+      try {
+        await setDoc(doc(db, 'settings', 'banners'), newBanners, { merge: true });
+      } catch (err) {
+        console.error('Firestore updateBanners error:', err);
+      }
+    }
+  };
+
   // --- BACKUP & RESET ---
   const resetToDefaults = () => {
     setEvents(initialEvents);
     setGallery(initialGallery);
     setTeam(initialTeam);
+    setBanners(DEFAULT_BANNERS);
     setPasscode(DEFAULT_PASSCODE);
   };
 
@@ -554,6 +607,7 @@ export const DataProvider = ({ children }) => {
       events,
       gallery,
       team,
+      banners,
     };
     return JSON.stringify(backup, null, 2);
   };
@@ -564,6 +618,7 @@ export const DataProvider = ({ children }) => {
       if (data.events && Array.isArray(data.events)) setEvents(data.events);
       if (data.gallery && Array.isArray(data.gallery)) setGallery(data.gallery);
       if (data.team && Array.isArray(data.team)) setTeam(data.team);
+      if (data.banners && typeof data.banners === 'object') setBanners(data.banners);
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };
@@ -576,6 +631,8 @@ export const DataProvider = ({ children }) => {
         events,
         gallery,
         team,
+        banners,
+        updateBanners,
         isAuthenticated,
         passcode,
         login,

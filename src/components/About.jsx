@@ -10,8 +10,12 @@ import {
   Layers,
   HeartHandshake
 } from 'lucide-react';
+import { useData } from '../context/DataContext';
 
 export const About = () => {
+  const { banners } = useData();
+  const aboutBannerSrc = banners?.aboutBanner || '/Events/team.png';
+
   const pillars = [
     {
       title: 'Peer-to-Peer Learning',
@@ -118,8 +122,12 @@ export const About = () => {
               {/* Primary Image Container */}
               <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white shadow-blue-900/15">
                 <img
-                  src="/Events/team.png"
+                  src={aboutBannerSrc}
                   alt="Unstop Igniters VIIT Team Collaboration"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1200&q=80';
+                  }}
                   className="w-full h-[420px] object-cover object-center transform hover:scale-105 transition-transform duration-700"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />

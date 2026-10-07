@@ -12,8 +12,12 @@ import {
   Zap,
   BookOpen
 } from 'lucide-react';
+import { useData } from '../context/DataContext';
 
 export const Hero = () => {
+  const { banners } = useData();
+  const heroBannerSrc = banners?.heroBanner || '/hero-banner.jpg';
+
   const scrollTo = (id) => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: 'smooth' });
@@ -135,8 +139,12 @@ export const Hero = () => {
                 {/* Image Wrapper with rounded corners and hover effect */}
                 <div className="relative overflow-hidden rounded-2xl bg-slate-950 aspect-[16/9] sm:aspect-[16/9.5]">
                   <img 
-                    src="/hero-banner.jpg" 
+                    src={heroBannerSrc} 
                     alt="Unstop Igniters Club VIIT Official Announcement" 
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1200&q=80';
+                    }}
                     className="w-full h-full object-cover sm:object-contain object-center transform group-hover:scale-[1.02] transition-transform duration-500"
                   />
                   {/* Subtle shine overlay */}
