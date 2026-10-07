@@ -40,24 +40,24 @@ export const Hero = () => {
             transition={{ duration: 0.6, ease: 'easeOut' }}
           >
             {/* Category Tag / Badge */}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-100/80 border border-blue-200/80 shadow-xs mb-6">
-              <span className="flex h-2 w-2 relative">
+            <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-full bg-blue-100/80 border border-blue-200/80 shadow-xs mb-5 sm:mb-6 max-w-full">
+              <span className="flex h-2 w-2 relative shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
               </span>
-              <span className="text-xs font-bold tracking-wider text-blue-900 uppercase">
+              <span className="text-[10px] sm:text-xs font-bold tracking-wider text-blue-900 uppercase truncate">
                 UNSTOP IGNITERS VIIT • INNOVATION • COMMUNITY
               </span>
-              <span className="text-yellow-500 font-bold">★</span>
+              <span className="text-yellow-500 font-bold shrink-0">★</span>
             </div>
 
             {/* Main Headline */}
-            <h1 className="font-display text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-slate-900 leading-[1.08] mb-6">
+            <h1 className="font-display text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight text-slate-900 leading-[1.08] mb-5 sm:mb-6">
               BUILD.{' '}
               <span className="relative text-blue-600 inline-block">
                 LEARN.
                 <svg
-                  className="absolute -bottom-2 left-0 w-full text-yellow-400 -z-10"
+                  className="absolute -bottom-1.5 sm:-bottom-2 left-0 w-full text-yellow-400 -z-10"
                   viewBox="0 0 200 12"
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
@@ -74,44 +74,44 @@ export const Hero = () => {
             </h1>
 
             {/* Supporting Paragraph */}
-            <p className="text-lg sm:text-xl text-slate-600 leading-relaxed max-w-2xl mb-8 font-normal">
+            <p className="text-base sm:text-lg lg:text-xl text-slate-600 leading-relaxed max-w-2xl mb-6 sm:mb-8 font-normal">
               A student-driven community at VIIT where ideas become innovation. We bridge the gap between academic theory and real-world tech mastery through hackathons, hands-on workshops, competitive coding, and peer mentorship.
             </p>
 
             {/* Action CTAs */}
-            <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row items-center gap-3.5 sm:gap-4 w-full sm:w-auto">
               <button
                 id="hero-explore-events-btn"
                 onClick={() => scrollTo('events')}
-                className="w-full sm:w-auto px-7 py-4 rounded-xl bg-blue-600 text-white font-bold text-base shadow-lg shadow-blue-600/25 hover:bg-blue-700 hover:shadow-blue-600/35 hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 group cursor-pointer"
+                className="w-full sm:w-auto px-6 sm:px-7 py-3.5 sm:py-4 rounded-xl bg-blue-600 text-white font-bold text-sm sm:text-base shadow-lg shadow-blue-600/25 hover:bg-blue-700 hover:shadow-blue-600/35 hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 group cursor-pointer"
               >
                 <span>Explore Events</span>
-                <ArrowRight className="w-5 h-5 transition-transform duration-200 group-hover:translate-x-1" />
+                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 transition-transform duration-200 group-hover:translate-x-1" />
               </button>
 
               <button
                 id="hero-view-activities-btn"
                 onClick={() => scrollTo('activities')}
-                className="w-full sm:w-auto px-7 py-4 rounded-xl bg-white border-2 border-slate-200 text-slate-800 font-bold text-base hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50/40 hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                className="w-full sm:w-auto px-6 sm:px-7 py-3.5 sm:py-4 rounded-xl bg-white border-2 border-slate-200 text-slate-800 font-bold text-sm sm:text-base hover:border-blue-600 hover:text-blue-600 hover:bg-blue-50/40 hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 shadow-xs cursor-pointer"
               >
-                <BookOpen className="w-5 h-5 text-blue-600" />
+                <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                 <span>What We Do</span>
               </button>
             </div>
 
             {/* Quick Metrics & Trust Badges */}
-            <div className="mt-10 pt-8 border-t border-slate-200/80 grid grid-cols-3 gap-6 sm:gap-10 w-full max-w-lg">
+            <div className="mt-8 sm:mt-10 pt-6 sm:pt-8 border-t border-slate-200/80 grid grid-cols-3 gap-3 sm:gap-6 lg:gap-10 w-full max-w-lg">
               <div>
-                <p className="text-2xl sm:text-3xl font-extrabold text-blue-600 tracking-tight">500+</p>
-                <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5">Active Members</p>
+                <p className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-blue-600 tracking-tight">500+</p>
+                <p className="text-[11px] sm:text-xs font-semibold text-slate-500 mt-0.5">Active Members</p>
               </div>
-              <div className="border-l border-slate-200 pl-6 sm:pl-10">
-                <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">25+</p>
-                <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5">Events Hosted</p>
+              <div className="border-l border-slate-200 pl-3 sm:pl-6 lg:pl-10">
+                <p className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight">25+</p>
+                <p className="text-[11px] sm:text-xs font-semibold text-slate-500 mt-0.5">Events Hosted</p>
               </div>
-              <div className="border-l border-slate-200 pl-6 sm:pl-10">
-                <p className="text-2xl sm:text-3xl font-extrabold text-blue-600 tracking-tight">100%</p>
-                <p className="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5">Student Run</p>
+              <div className="border-l border-slate-200 pl-3 sm:pl-6 lg:pl-10">
+                <p className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-blue-600 tracking-tight">100%</p>
+                <p className="text-[11px] sm:text-xs font-semibold text-slate-500 mt-0.5">Student Run</p>
               </div>
             </div>
           </motion.div>
