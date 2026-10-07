@@ -1,0 +1,70 @@
+﻿export const eventsData = [
+  {
+    id: 1,
+    title: 'Career & Coding Guidance Seminar',
+    category: 'Seminars',
+    status: 'Completed',
+    date: 'Aug 22, 2026',
+    time: '10:00 AM IST',
+    location: 'Dharitri Block Classrooms',
+    mode: 'In-Person',
+    participants: '120+ Students',
+    prizePool: 'Knowledge & Career Guidance',
+    description: 'An interactive seminar organized by the club for junior students, covering essential topics such as LinkedIn profile building, coding fundamentals, competitive programming, career preparation, and opportunities in the tech industry.',
+    image: '/Events/Seminar Aug 22 2026.jpeg',
+    images: [
+      {
+        url: '/Events/Seminar Aug 22 2026.jpeg',
+        caption: 'Career guidance presentation in Dharitri Block classrooms',
+      },
+      {
+        url: '/Events/orientation.jpg',
+        caption: 'Junior student interactive Q&A and networking session',
+      },
+      {
+        url: '/Events/orientation 2.jpeg',
+        caption: 'LinkedIn profile reviews, resume crafting, and portfolio mentorship',
+      },
+    ],
+    tags: ['LinkedIn', 'Coding', 'Career Guidance', 'Tech Skills'],
+    featured: false,
+    registrationOpen: false,
+    link: '#',
+  },
+  {
+    id: 2,
+    title: 'Zero to Hero in Cybersecurity: Applied Pentesting & Web Application Security',
+    category: 'Workshops',
+    status: 'Completed',
+    date: 'Sep 26, 2026',
+    time: '3 Hours',
+    location: 'SA 13 and SA 16, VIIT Campus',
+    mode: 'In-Person',
+    participants: '2nd Year AI Students',
+    prizePool: 'Certificates & Practical Learning',
+    description: 'A hands-on cybersecurity workshop introducing students to ethical hacking, penetration testing, web application vulnerabilities, OWASP concepts, Cross-Site Scripting (XSS), session hijacking, and defensive security strategies through guided demonstrations and sandboxed practical activities.',
+    image: '/Events/ws1.jpeg',
+    images: [
+      {
+        url: '/Events/ws2.jpeg',
+        caption: 'Students learning cybersecurity concepts and ethical hacking fundamentals',
+      },
+      {
+        url: '/Events/ws4.jpeg',
+        caption: 'Hands-on practical session with students working on computer systems',
+      },
+      {
+        url: '/Events/ws3.jpeg',
+        caption: 'Students participating in guided cybersecurity practical activities',
+      },
+      {
+        url: '/Events/ws6.jpeg',
+        caption: 'Interactive learning and discussion during the workshop',
+      },
+    ],
+    tags: ['Cybersecurity', 'Pentesting', 'Web Security', 'Ethical Hacking'],
+    featured: false,
+    registrationOpen: false,
+    link: '#',
+  },
+];
