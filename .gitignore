@@ -26,5 +26,3 @@ dist-ssr
 # Ignore local photo uploads from git repository
 public/Events/
 public/team/
-public/banner.jpg
-public/hero-banner.jpg
