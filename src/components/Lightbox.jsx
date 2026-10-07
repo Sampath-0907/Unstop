@@ -6,9 +6,13 @@ export const Lightbox = ({ item, onClose, onPrev, onNext }) => {
   const [photoIdx, setPhotoIdx] = useState(0);
 
   // Normalize images array for the active gallery event
-  const photos = Array.isArray(item?.images) && item.images.length > 0
+  const rawPhotos = Array.isArray(item?.images) && item.images.length > 0
     ? item.images
     : (item?.image ? [item.image] : []);
+
+  const photos = rawPhotos
+    .map((p) => (typeof p === 'string' ? p : p?.url || ''))
+    .filter(Boolean);
 
   // Reset photo index when item changes
   useEffect(() => {
@@ -51,7 +55,7 @@ export const Lightbox = ({ item, onClose, onPrev, onNext }) => {
 
   if (!item) return null;
 
-  const currentImage = photos[photoIdx] || item.image;
+  const currentImage = photos[photoIdx] || (typeof item.image === 'string' ? item.image : item.image?.url) || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1200&q=80';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 md:p-10">
@@ -101,6 +105,10 @@ export const Lightbox = ({ item, onClose, onPrev, onNext }) => {
               key={`${item.id}-${photoIdx}`}
               src={currentImage}
               alt={item.title}
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1200&q=80';
+              }}
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.97 }}
@@ -159,6 +167,10 @@ export const Lightbox = ({ item, onClose, onPrev, onNext }) => {
                   <img 
                     src={url} 
                     alt="" 
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=200&q=80';
+                    }}
                     className="w-full h-full object-cover" 
                   />
                 </button>

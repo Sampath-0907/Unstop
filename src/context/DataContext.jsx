@@ -48,19 +48,56 @@ const DEFAULT_FIREBASE = {
   measurementId: "G-3H2BLKP8KM",
 };
 
-// Helper to merge cloud items over baseline default items without losing untouched defaults
-const mergeWithDefaults = (defaults, cloudItems) => {
-  const map = new Map();
-  // 1. Seed with baseline initial defaults, setting explicit order = index
-  defaults.forEach((item, index) => {
-    map.set(String(item.id), {
-      ...item,
-      id: String(item.id),
-      order: typeof item.order === 'number' && !isNaN(item.order) ? item.order : index
-    });
-  });
+const isRemoteUrl = (url) => {
+  return typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:'));
+};
 
-  // 2. Overlay cloud records (respecting explicit _deleted markers)
+// Helper to merge baseline default items, local cached items, and remote cloud items
+// Guarantees that uploaded Cloudinary images and custom orders are NEVER lost or overwritten by defaults
+const mergeWithDefaults = (defaults = [], cloudItems = [], localItems = []) => {
+  const map = new Map();
+
+  // 1. Layer 1: Baseline defaults
+  if (Array.isArray(defaults)) {
+    defaults.forEach((item, index) => {
+      map.set(String(item.id), {
+        ...item,
+        id: String(item.id),
+        order: typeof item.order === 'number' && !isNaN(item.order) ? item.order : index,
+      });
+    });
+  }
+
+  // 2. Layer 2: Local storage items (retains user uploads & local edits across tabs/sessions)
+  if (Array.isArray(localItems)) {
+    localItems.forEach((localItem) => {
+      if (!localItem || typeof localItem !== 'object') return;
+      const id = String(localItem.id);
+      if (localItem._deleted) {
+        map.delete(id);
+      } else {
+        const existing = map.get(id) || {};
+        const chosenImage = isRemoteUrl(localItem.image)
+          ? localItem.image
+          : (localItem.image || existing.image || '');
+
+        const chosenImages = (Array.isArray(localItem.images) && localItem.images.length > 0)
+          ? localItem.images
+          : (existing.images || []);
+
+        map.set(id, {
+          ...existing,
+          ...localItem,
+          id: id,
+          order: typeof localItem.order === 'number' && !isNaN(localItem.order) ? localItem.order : existing.order,
+          image: chosenImage,
+          images: chosenImages,
+        });
+      }
+    });
+  }
+
+  // 3. Layer 3: Cloud Firestore items (authoritative cloud sync)
   if (Array.isArray(cloudItems)) {
     cloudItems.forEach((cloudItem) => {
       if (!cloudItem || typeof cloudItem !== 'object') return;
@@ -69,16 +106,31 @@ const mergeWithDefaults = (defaults, cloudItems) => {
         map.delete(id);
       } else {
         const existing = map.get(id) || {};
-        
-        // Preserve order if cloudItem doesn't specify one
+
+        // Preserve order
         const finalOrder = (typeof cloudItem.order === 'number' && !isNaN(cloudItem.order))
           ? cloudItem.order
           : ((typeof existing.order === 'number' && !isNaN(existing.order)) ? existing.order : map.size);
 
-        // Preserve image if cloudItem.image is empty or undefined
-        const finalImage = (cloudItem.image && String(cloudItem.image).trim() !== '')
-          ? cloudItem.image
-          : (existing.image || '');
+        // Preserve image: Cloud remote > Local remote > Cloud explicit > Local explicit
+        let finalImage = existing.image || '';
+        if (isRemoteUrl(cloudItem.image)) {
+          finalImage = cloudItem.image;
+        } else if (isRemoteUrl(existing.image)) {
+          finalImage = existing.image;
+        } else if (cloudItem.image && String(cloudItem.image).trim() !== '') {
+          finalImage = cloudItem.image;
+        }
+
+        // Preserve images array for events & gallery
+        let finalImages = existing.images || [];
+        if (Array.isArray(cloudItem.images) && cloudItem.images.length > 0) {
+          const hasCloudRemote = cloudItem.images.some((img) => isRemoteUrl(typeof img === 'string' ? img : img?.url));
+          const hasExistingRemote = Array.isArray(existing.images) && existing.images.some((img) => isRemoteUrl(typeof img === 'string' ? img : img?.url));
+          if (hasCloudRemote || !hasExistingRemote) {
+            finalImages = cloudItem.images;
+          }
+        }
 
         map.set(id, {
           ...existing,
@@ -86,6 +138,7 @@ const mergeWithDefaults = (defaults, cloudItems) => {
           id: id,
           order: finalOrder,
           image: finalImage,
+          images: finalImages,
         });
       }
     });
@@ -111,7 +164,7 @@ export const DataProvider = ({ children }) => {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return mergeWithDefaults(initialEvents, parsed);
+          return mergeWithDefaults(initialEvents, [], parsed);
         }
       }
       return initialEvents.map((item, idx) => ({ order: idx, ...item }));
@@ -126,7 +179,7 @@ export const DataProvider = ({ children }) => {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return mergeWithDefaults(initialGallery, parsed);
+          return mergeWithDefaults(initialGallery, [], parsed);
         }
       }
       return initialGallery.map((item, idx) => ({ order: idx, ...item }));
@@ -141,7 +194,7 @@ export const DataProvider = ({ children }) => {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return mergeWithDefaults(initialTeam, parsed);
+          return mergeWithDefaults(initialTeam, [], parsed);
         }
       }
       return initialTeam.map((item, idx) => ({ order: idx, ...item }));
@@ -271,16 +324,26 @@ export const DataProvider = ({ children }) => {
 
     setIsFirebaseConnected(true);
 
-    // 1. Real-time Events Listener
+    // 1. Real-time Events Listener (3-layer merge)
     const unsubEvents = onSnapshot(
       collection(db, 'events'),
       (snapshot) => {
+        const savedEvents = (() => {
+          try {
+            const s = localStorage.getItem(STORAGE_KEYS.EVENTS);
+            return s ? JSON.parse(s) : [];
+          } catch {
+            return [];
+          }
+        })();
+
         if (!snapshot.empty) {
           const cloudEvents = snapshot.docs.map((d) => ({ ...d.data(), id: d.id }));
-          const merged = mergeWithDefaults(initialEvents, cloudEvents);
+          const merged = mergeWithDefaults(initialEvents, cloudEvents, savedEvents);
           setEvents(merged);
         } else {
-          setEvents(initialEvents.map((item, idx) => ({ order: idx, ...item })));
+          const merged = mergeWithDefaults(initialEvents, [], savedEvents);
+          setEvents(merged);
         }
       },
       (error) => {
@@ -288,16 +351,26 @@ export const DataProvider = ({ children }) => {
       }
     );
 
-    // 2. Real-time Gallery Listener
+    // 2. Real-time Gallery Listener (3-layer merge)
     const unsubGallery = onSnapshot(
       collection(db, 'gallery'),
       (snapshot) => {
+        const savedGallery = (() => {
+          try {
+            const s = localStorage.getItem(STORAGE_KEYS.GALLERY);
+            return s ? JSON.parse(s) : [];
+          } catch {
+            return [];
+          }
+        })();
+
         if (!snapshot.empty) {
           const cloudGallery = snapshot.docs.map((d) => ({ ...d.data(), id: d.id }));
-          const merged = mergeWithDefaults(initialGallery, cloudGallery);
+          const merged = mergeWithDefaults(initialGallery, cloudGallery, savedGallery);
           setGallery(merged);
         } else {
-          setGallery(initialGallery.map((item, idx) => ({ order: idx, ...item })));
+          const merged = mergeWithDefaults(initialGallery, [], savedGallery);
+          setGallery(merged);
         }
       },
       (error) => {
@@ -305,16 +378,26 @@ export const DataProvider = ({ children }) => {
       }
     );
 
-    // 3. Real-time Team Listener
+    // 3. Real-time Team Listener (3-layer merge)
     const unsubTeam = onSnapshot(
       collection(db, 'team'),
       (snapshot) => {
+        const savedTeam = (() => {
+          try {
+            const s = localStorage.getItem(STORAGE_KEYS.TEAM);
+            return s ? JSON.parse(s) : [];
+          } catch {
+            return [];
+          }
+        })();
+
         if (!snapshot.empty) {
           const cloudTeam = snapshot.docs.map((d) => ({ ...d.data(), id: d.id }));
-          const merged = mergeWithDefaults(initialTeam, cloudTeam);
+          const merged = mergeWithDefaults(initialTeam, cloudTeam, savedTeam);
           setTeam(merged);
         } else {
-          setTeam(initialTeam.map((item, idx) => ({ order: idx, ...item })));
+          const merged = mergeWithDefaults(initialTeam, [], savedTeam);
+          setTeam(merged);
         }
       },
       (error) => {
@@ -659,7 +742,7 @@ export const DataProvider = ({ children }) => {
     if (db) {
       try {
         for (const item of indexed) {
-          await setDoc(doc(db, 'events', String(item.id)), { order: item.order }, { merge: true });
+          await setDoc(doc(db, 'events', String(item.id)), item, { merge: true });
         }
       } catch (err) {
         console.error('Firestore reorderEvents error:', err);
@@ -696,7 +779,7 @@ export const DataProvider = ({ children }) => {
     if (db) {
       try {
         for (const item of indexed) {
-          await setDoc(doc(db, 'gallery', String(item.id)), { order: item.order }, { merge: true });
+          await setDoc(doc(db, 'gallery', String(item.id)), item, { merge: true });
         }
       } catch (err) {
         console.error('Firestore reorderGallery error:', err);
@@ -733,7 +816,7 @@ export const DataProvider = ({ children }) => {
     if (db) {
       try {
         for (const item of indexed) {
-          await setDoc(doc(db, 'team', String(item.id)), { order: item.order }, { merge: true });
+          await setDoc(doc(db, 'team', String(item.id)), item, { merge: true });
         }
       } catch (err) {
         console.error('Firestore reorderTeam error:', err);
