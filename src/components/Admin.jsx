@@ -302,21 +302,32 @@ export const Admin = ({ onNavigateToSite }) => {
   };
 
   const handleUploadEventPhotoFile = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
     if (!cloudinaryConfig?.cloudName || !cloudinaryConfig?.uploadPreset) {
       showToast('Please configure Cloudinary in Settings first!');
       return;
     }
     setIsEventPhotoUploading(true);
     try {
-      const res = await uploadImageToCloudinary(file, cloudinaryConfig.cloudName, cloudinaryConfig.uploadPreset);
-      setEventForm((prev) => ({
-        ...prev,
-        images: [...(prev.images || []), { url: res.url, caption: file.name.replace(/\.[^/.]+$/, "") }],
-        image: prev.image || res.url,
+      const uploadPromises = files.map((file) =>
+        uploadImageToCloudinary(file, cloudinaryConfig.cloudName, cloudinaryConfig.uploadPreset)
+      );
+      const results = await Promise.all(uploadPromises);
+      const newPhotoObjects = results.map((res, i) => ({
+        url: res.url,
+        caption: files[i]?.name?.replace(/\.[^/.]+$/, "") || '',
       }));
-      showToast('Photo uploaded to Cloudinary!');
+
+      setEventForm((prev) => {
+        const nextImages = [...(prev.images || []), ...newPhotoObjects];
+        return {
+          ...prev,
+          images: nextImages,
+          image: prev.image || nextImages[0]?.url || '',
+        };
+      });
+      showToast(`Uploaded ${newPhotoObjects.length} photo(s) to Cloudinary!`);
     } catch (err) {
       showToast('Upload failed: ' + err.message);
     } finally {
@@ -362,6 +373,7 @@ export const Admin = ({ onNavigateToSite }) => {
     setEditingGallery(item);
     setGalleryForm({
       ...item,
+      image: item.image || (Array.isArray(item.images) ? item.images[0] : '') || '',
       images: Array.isArray(item.images) ? item.images : (item.image ? [item.image] : []),
     });
     setNewGalleryPhotoUrl('');
@@ -371,10 +383,11 @@ export const Admin = ({ onNavigateToSite }) => {
   const handleSaveGallery = (e) => {
     e.preventDefault();
     const imgs = galleryForm.images || [];
+    const chosenImage = galleryForm.image || imgs[0] || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80';
     const payload = {
       ...galleryForm,
-      image: galleryForm.image || imgs[0] || '/Events/In 1.JPG',
-      images: imgs.length > 0 ? imgs : (galleryForm.image ? [galleryForm.image] : []),
+      image: chosenImage,
+      images: imgs.length > 0 ? imgs : [chosenImage],
     };
 
     if (editingGallery) {
@@ -392,33 +405,43 @@ export const Admin = ({ onNavigateToSite }) => {
 
   const addPhotoToGallery = () => {
     if (!newGalleryPhotoUrl.trim()) return;
-    setGalleryForm((prev) => ({
-      ...prev,
-      images: [...(prev.images || []), newGalleryPhotoUrl.trim()],
-      image: prev.image || newGalleryPhotoUrl.trim(),
-    }));
+    const urlToAdd = newGalleryPhotoUrl.trim();
+    setGalleryForm((prev) => {
+      const nextImgs = [...(prev.images || []), urlToAdd];
+      return {
+        ...prev,
+        images: nextImgs,
+        image: prev.image || nextImgs[0] || urlToAdd,
+      };
+    });
     setNewGalleryPhotoUrl('');
+    showToast('Photo added to gallery list!');
   };
 
   const handleUploadGalleryPhotoFile = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
     if (!cloudinaryConfig?.cloudName || !cloudinaryConfig?.uploadPreset) {
       showToast('Please configure Cloudinary in Settings first!');
       return;
     }
     setIsGalleryPhotoUploading(true);
     try {
-      const res = await uploadImageToCloudinary(file, cloudinaryConfig.cloudName, cloudinaryConfig.uploadPreset);
+      const uploadPromises = files.map((file) =>
+        uploadImageToCloudinary(file, cloudinaryConfig.cloudName, cloudinaryConfig.uploadPreset)
+      );
+      const results = await Promise.all(uploadPromises);
+      const newUrls = results.map((r) => r.url).filter(Boolean);
+
       setGalleryForm((prev) => {
-        const nextImgs = [...(prev.images || []), res.url];
+        const nextImgs = [...(prev.images || []), ...newUrls];
         return {
           ...prev,
           images: nextImgs,
-          image: prev.image || res.url,
+          image: prev.image || nextImgs[0] || '',
         };
       });
-      showToast('Gallery photo uploaded to Cloudinary!');
+      showToast(`Uploaded ${newUrls.length} gallery photo(s) to Cloudinary!`);
     } catch (err) {
       showToast('Upload failed: ' + err.message);
     } finally {
@@ -1938,14 +1961,27 @@ export const Admin = ({ onNavigateToSite }) => {
                   />
                 </div>
 
+                {/* Album Cover Photo with Cloudinary */}
+                <ImageUploader
+                  label="Album Cover Photo"
+                  value={galleryForm.image}
+                  onChange={(url) => setGalleryForm({ ...galleryForm, image: url })}
+                  placeholder="https://... or upload cover image"
+                  aspectRatio="video"
+                  onOpenSettings={() => {
+                    setIsGalleryModalOpen(false);
+                    setActiveTab('settings');
+                  }}
+                />
+
                 {/* Multi-Photo Manager */}
                 <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <label className="block text-xs font-bold text-yellow-400 uppercase tracking-wider">
-                      Gallery Photos ({galleryForm.images?.length || 0})
+                      Gallery Album Photos ({galleryForm.images?.length || 0})
                     </label>
 
-                    {/* Direct Cloudinary upload button */}
+                    {/* Direct Cloudinary batch upload button */}
                     <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                       isGalleryPhotoUploading 
                         ? 'bg-blue-600/50 text-blue-200 cursor-not-allowed'
@@ -1959,12 +1995,13 @@ export const Admin = ({ onNavigateToSite }) => {
                       ) : (
                         <>
                           <Upload className="w-3.5 h-3.5" />
-                          <span>Upload from Device (Cloudinary)</span>
+                          <span>Upload Photos (Select Multiple)</span>
                         </>
                       )}
                       <input
                         type="file"
                         accept="image/*"
+                        multiple
                         disabled={isGalleryPhotoUploading}
                         onChange={handleUploadGalleryPhotoFile}
                         className="hidden"
@@ -1972,12 +2009,16 @@ export const Admin = ({ onNavigateToSite }) => {
                     </label>
                   </div>
 
+                  <p className="text-[11px] text-slate-400">
+                    Add or upload multiple photos for this album. These photos appear inside the interactive album lightbox.
+                  </p>
+
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={newGalleryPhotoUrl}
                       onChange={(e) => setNewGalleryPhotoUrl(e.target.value)}
-                      placeholder="Enter photo path e.g. /Events/In 2.jpeg or URL"
+                      placeholder="Enter photo URL e.g. https://... or /Events/In 2.jpeg"
                       className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white focus:outline-none"
                     />
                     <button
@@ -1997,7 +2038,8 @@ export const Admin = ({ onNavigateToSite }) => {
                           <button
                             type="button"
                             onClick={() => removePhotoFromGallery(i)}
-                            className="absolute top-1 right-1 p-1 rounded-md bg-black/80 hover:bg-rose-600 text-white transition-colors"
+                            className="absolute top-1 right-1 p-1 rounded-md bg-black/80 hover:bg-rose-600 text-white transition-colors cursor-pointer"
+                            title="Remove photo"
                           >
                             <X className="w-3 h-3" />
                           </button>
