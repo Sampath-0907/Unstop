@@ -202,7 +202,7 @@ export const ImageUploader = ({
                       Drop image here, or <span className="text-blue-600 underline">Browse from Device</span>
                     </p>
                     <p className="text-[11px] text-slate-500">
-                      Cloudinary direct upload (JPEG, PNG, WEBP up to 10MB)
+                      Cloudinary direct upload (JPEG, PNG, WEBP — auto-optimized)
                     </p>
                   </>
                 ) : (
