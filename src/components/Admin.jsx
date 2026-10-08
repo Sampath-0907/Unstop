@@ -261,11 +261,11 @@ export const Admin = ({ onNavigateToSite }) => {
     try {
       const res = await testFirestoreConnection();
       if (res.success) {
-        setTestResult({ success: true, msg: '✅ Connection successful! Cloud Firestore is active, writable, and reachable worldwide.' });
-        showToast('Firestore connection verified successfully!');
+        setTestResult({ success: true, msg: '✅ Connection successful! Firebase Realtime Database is active, writable, and reachable worldwide.' });
+        showToast('Firebase connection verified successfully!');
       } else {
         setTestResult({ success: false, msg: `❌ ${res.error}` });
-        showToast('Firestore test failed. Follow the 1-min guide.');
+        showToast('Firebase test failed. Follow the 30-sec guide.');
       }
     } catch (err) {
       setTestResult({ success: false, msg: `❌ Error: ${err.message}` });
@@ -1740,7 +1740,7 @@ export const Admin = ({ onNavigateToSite }) => {
                     <span>Push All Uploaded Photos & Data to Cloud</span>
                   </h3>
                   <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                    Uploads all current photos, member details, albums, and posters from this device to Firebase Firestore for instant global access.
+                    Uploads all current photos, member details, albums, and posters from this device to Firebase Realtime Database for instant global access across all devices.
                   </p>
                 </div>
                 <button

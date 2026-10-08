@@ -255,7 +255,15 @@ export const DataProvider = ({ children }) => {
   const [firebaseConfig, setFirebaseConfig] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.FIREBASE);
-      return saved ? JSON.parse(saved) : DEFAULT_FIREBASE;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          ...DEFAULT_FIREBASE,
+          ...parsed,
+          databaseURL: parsed.databaseURL || DEFAULT_FIREBASE.databaseURL,
+        };
+      }
+      return DEFAULT_FIREBASE;
     } catch {
       return DEFAULT_FIREBASE;
     }
@@ -322,7 +330,7 @@ export const DataProvider = ({ children }) => {
   }, [banners]);
 
   // ============================================================================
-  // FIREBASE REAL-TIME SYNC (REALTIME DATABASE + FIRESTORE HYBRID)
+  // FIREBASE REAL-TIME SYNC (REALTIME DATABASE)
   // ============================================================================
   useEffect(() => {
     if (!firebaseConfig?.apiKey || !firebaseConfig?.projectId) {
@@ -348,14 +356,14 @@ export const DataProvider = ({ children }) => {
       return;
     }
 
-    const { db, rtdb } = fbInit;
+    const { rtdb } = fbInit;
     setIsFirebaseConnected(true);
 
     const handleListenerError = (collName, err) => {
       console.warn(`Firebase ${collName} listener warning:`, err);
       let errMsg = err?.message || String(err);
       if (errMsg.includes('Permission denied') || errMsg.includes('PERMISSION_DENIED')) {
-        errMsg = 'Permission denied by Firebase Security Rules. Please check Rules in Firebase Console.';
+        errMsg = 'Permission denied by Firebase Security Rules. Please update Rules in Firebase Console (set ".read": true, ".write": true).';
       }
       setCloudSyncStatus((prev) => ({
         ...prev,
@@ -391,7 +399,7 @@ export const DataProvider = ({ children }) => {
 
     const unsubs = [];
 
-    // --- 1. REALTIME DATABASE LISTENERS (Preferred & Fast) ---
+    // --- REALTIME DATABASE LISTENERS (Instant & Cross-Device) ---
     if (rtdb) {
       try {
         const unsubRtdbEvents = rtdbOnValue(rtdbRef(rtdb, 'events'), (snap) => {
@@ -399,7 +407,9 @@ export const DataProvider = ({ children }) => {
             markSuccessSync();
             const list = normalizeRtdbList(snap.val());
             const saved = getLocal(STORAGE_KEYS.EVENTS);
-            setEvents(mergeWithDefaults(initialEvents, list, saved));
+            const merged = mergeWithDefaults(initialEvents, list, saved);
+            setEvents(merged);
+            try { localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(merged)); } catch (e) {}
           }
         }, (err) => handleListenerError('RTDB Events', err));
         unsubs.push(unsubRtdbEvents);
@@ -409,7 +419,9 @@ export const DataProvider = ({ children }) => {
             markSuccessSync();
             const list = normalizeRtdbList(snap.val());
             const saved = getLocal(STORAGE_KEYS.GALLERY);
-            setGallery(mergeWithDefaults(initialGallery, list, saved));
+            const merged = mergeWithDefaults(initialGallery, list, saved);
+            setGallery(merged);
+            try { localStorage.setItem(STORAGE_KEYS.GALLERY, JSON.stringify(merged)); } catch (e) {}
           }
         }, (err) => handleListenerError('RTDB Gallery', err));
         unsubs.push(unsubRtdbGallery);
@@ -419,7 +431,9 @@ export const DataProvider = ({ children }) => {
             markSuccessSync();
             const list = normalizeRtdbList(snap.val());
             const saved = getLocal(STORAGE_KEYS.TEAM);
-            setTeam(mergeWithDefaults(initialTeam, list, saved));
+            const merged = mergeWithDefaults(initialTeam, list, saved);
+            setTeam(merged);
+            try { localStorage.setItem(STORAGE_KEYS.TEAM, JSON.stringify(merged)); } catch (e) {}
           }
         }, (err) => handleListenerError('RTDB Team', err));
         unsubs.push(unsubRtdbTeam);
@@ -439,67 +453,6 @@ export const DataProvider = ({ children }) => {
       }
     }
 
-    // --- 2. CLOUD FIRESTORE LISTENERS ---
-    if (db) {
-      try {
-        const unsubEvents = onSnapshot(
-          collection(db, 'events'),
-          (snapshot) => {
-            markSuccessSync();
-            const saved = getLocal(STORAGE_KEYS.EVENTS);
-            if (!snapshot.empty) {
-              const cloudEvents = snapshot.docs.map((d) => ({ ...d.data(), id: d.id }));
-              setEvents(mergeWithDefaults(initialEvents, cloudEvents, saved));
-            }
-          },
-          (error) => handleListenerError('Firestore Events', error)
-        );
-        unsubs.push(unsubEvents);
-
-        const unsubGallery = onSnapshot(
-          collection(db, 'gallery'),
-          (snapshot) => {
-            markSuccessSync();
-            const saved = getLocal(STORAGE_KEYS.GALLERY);
-            if (!snapshot.empty) {
-              const cloudGallery = snapshot.docs.map((d) => ({ ...d.data(), id: d.id }));
-              setGallery(mergeWithDefaults(initialGallery, cloudGallery, saved));
-            }
-          },
-          (error) => handleListenerError('Firestore Gallery', error)
-        );
-        unsubs.push(unsubGallery);
-
-        const unsubTeam = onSnapshot(
-          collection(db, 'team'),
-          (snapshot) => {
-            markSuccessSync();
-            const saved = getLocal(STORAGE_KEYS.TEAM);
-            if (!snapshot.empty) {
-              const cloudTeam = snapshot.docs.map((d) => ({ ...d.data(), id: d.id }));
-              setTeam(mergeWithDefaults(initialTeam, cloudTeam, saved));
-            }
-          },
-          (error) => handleListenerError('Firestore Team', error)
-        );
-        unsubs.push(unsubTeam);
-
-        const unsubBanners = onSnapshot(
-          doc(db, 'settings', 'banners'),
-          (docSnap) => {
-            markSuccessSync();
-            if (docSnap.exists()) {
-              setBanners((prev) => ({ ...prev, ...docSnap.data() }));
-            }
-          },
-          (error) => handleListenerError('Firestore Banners', error)
-        );
-        unsubs.push(unsubBanners);
-      } catch (err) {
-        console.warn('Firestore subscription error:', err);
-      }
-    }
-
     return () => {
       unsubs.forEach((unsub) => {
         try { unsub(); } catch (e) {}
@@ -515,108 +468,61 @@ export const DataProvider = ({ children }) => {
     setFirebaseConfig((prev) => ({ ...prev, ...newConfig }));
   };
 
-  // Test Cloud Connection (checks RTDB and Firestore)
+  // Test Cloud Connection (checks Realtime Database)
   const testFirestoreConnection = async () => {
-    const db = getDb();
     const rtdb = getRtdb();
-    if (!db && !rtdb) {
-      return { success: false, error: 'Firebase is not initialized. Please verify configuration.' };
+    if (!rtdb) {
+      return { success: false, error: 'Firebase is not initialized. Please verify configuration in Settings.' };
     }
 
-    // 1. Try Realtime Database
-    if (rtdb) {
-      try {
-        await rtdbSet(rtdbRef(rtdb, '_healthcheck/ping'), { ping: true, timestamp: new Date().toISOString() });
-        setCloudSyncStatus({
-          status: 'synced',
-          error: null,
-          lastSyncedAt: new Date().toISOString(),
-          isSyncing: false,
-        });
-        return { success: true, backend: 'Realtime Database' };
-      } catch (rtdbErr) {
-        console.warn('RTDB test ping note:', rtdbErr);
+    try {
+      await Promise.race([
+        rtdbSet(rtdbRef(rtdb, '_healthcheck/ping'), { ping: true, timestamp: new Date().toISOString() }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timed out. Please check network or Firebase URL.')), 4000)),
+      ]);
+      setCloudSyncStatus({
+        status: 'synced',
+        error: null,
+        lastSyncedAt: new Date().toISOString(),
+        isSyncing: false,
+      });
+      return { success: true, backend: 'Firebase Realtime Database' };
+    } catch (rtdbErr) {
+      console.warn('RTDB test ping error:', rtdbErr);
+      let errMsg = rtdbErr?.message || 'Connection test failed.';
+      if (errMsg.includes('Permission denied') || errMsg.includes('PERMISSION_DENIED')) {
+        errMsg = 'Permission denied by Firebase Security Rules. Please go to Firebase Console -> Realtime Database -> Rules and set ".read": true, ".write": true.';
       }
+      setCloudSyncStatus({
+        status: 'error',
+        error: errMsg,
+        lastSyncedAt: null,
+        isSyncing: false,
+      });
+      return { success: false, error: errMsg };
     }
-
-    // 2. Try Firestore
-    if (db) {
-      try {
-        const pingDoc = doc(db, '_healthcheck', 'ping');
-        await setDoc(pingDoc, { ping: true, timestamp: new Date().toISOString() });
-        setCloudSyncStatus({
-          status: 'synced',
-          error: null,
-          lastSyncedAt: new Date().toISOString(),
-          isSyncing: false,
-        });
-        return { success: true, backend: 'Firestore' };
-      } catch (fsErr) {
-        console.warn('Firestore test ping note:', fsErr);
-      }
-    }
-
-    const errMsg = 'Permission denied by Firebase Security Rules. Please go to Firebase Console -> Realtime Database -> Rules and set ".read": true, ".write": true.';
-    setCloudSyncStatus({
-      status: 'error',
-      error: errMsg,
-      lastSyncedAt: null,
-      isSyncing: false,
-    });
-    return { success: false, error: errMsg };
   };
 
   // Push / Sync All Local Data to Firebase Cloud so every device worldwide sees it
   const pushAllDataToCloud = async () => {
-    const db = getDb();
     const rtdb = getRtdb();
-    if (!db && !rtdb) {
-      throw new Error('Firebase is not initialized.');
+    if (!rtdb) {
+      throw new Error('Firebase Realtime Database is not initialized.');
     }
 
     setCloudSyncStatus((prev) => ({ ...prev, isSyncing: true }));
-    let synced = false;
-    let lastError = null;
 
-    // 1. Push to Realtime Database
-    if (rtdb) {
-      try {
-        await rtdbSet(rtdbRef(rtdb, 'team'), team);
-        await rtdbSet(rtdbRef(rtdb, 'events'), events);
-        await rtdbSet(rtdbRef(rtdb, 'gallery'), gallery);
-        if (banners) {
-          await rtdbSet(rtdbRef(rtdb, 'settings/banners'), banners);
-        }
-        synced = true;
-      } catch (err) {
-        console.warn('RTDB batch write note:', err);
-        lastError = err;
-      }
-    }
+    try {
+      await Promise.race([
+        Promise.all([
+          rtdbSet(rtdbRef(rtdb, 'team'), team),
+          rtdbSet(rtdbRef(rtdb, 'events'), events),
+          rtdbSet(rtdbRef(rtdb, 'gallery'), gallery),
+          banners ? rtdbSet(rtdbRef(rtdb, 'settings/banners'), banners) : Promise.resolve(),
+        ]),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Sync operation timed out. Please check your internet connection.')), 6000)),
+      ]);
 
-    // 2. Push to Firestore
-    if (db) {
-      try {
-        for (const ev of events) {
-          await setDoc(doc(db, 'events', String(ev.id)), { ...ev, id: String(ev.id) }, { merge: true });
-        }
-        for (const gal of gallery) {
-          await setDoc(doc(db, 'gallery', String(gal.id)), { ...gal, id: String(gal.id) }, { merge: true });
-        }
-        for (const mem of team) {
-          await setDoc(doc(db, 'team', String(mem.id)), { ...mem, id: String(mem.id) }, { merge: true });
-        }
-        if (banners) {
-          await setDoc(doc(db, 'settings', 'banners'), banners, { merge: true });
-        }
-        synced = true;
-      } catch (err) {
-        console.warn('Firestore batch write note:', err);
-        if (!lastError) lastError = err;
-      }
-    }
-
-    if (synced) {
       setCloudSyncStatus({
         status: 'synced',
         error: null,
@@ -632,9 +538,10 @@ export const DataProvider = ({ children }) => {
           gallery: gallery.length,
         },
       };
-    } else {
-      let errMsg = lastError?.message || 'Permission denied. Please check Firebase Security Rules.';
-      if (errMsg.includes('Permission denied')) {
+    } catch (err) {
+      console.error('Cloud sync error:', err);
+      let errMsg = err?.message || 'Sync failed. Please check Firebase security rules.';
+      if (errMsg.includes('Permission denied') || errMsg.includes('PERMISSION_DENIED')) {
         errMsg = 'Permission denied by Firebase Security Rules. Please update Rules in Firebase Console (set ".read": true, ".write": true).';
       }
       setCloudSyncStatus({
@@ -672,35 +579,23 @@ export const DataProvider = ({ children }) => {
     setPasscode(newPasscode);
   };
 
-  // Helper to synchronize data mutations to both Realtime Database and Firestore
+  // Helper to synchronize data mutations to Realtime Database
   const syncToBackends = async (collectionName, id, itemData, fullList = null) => {
-    const db = getDb();
     const rtdb = getRtdb();
+    if (!rtdb) return;
 
-    // 1. Sync to Realtime Database
-    if (rtdb) {
-      try {
-        if (fullList) {
-          await rtdbSet(rtdbRef(rtdb, collectionName), fullList);
-        } else if (id && itemData) {
-          if (itemData._deleted) {
-            await rtdbRemove(rtdbRef(rtdb, `${collectionName}/${id}`));
-          } else {
-            await rtdbSet(rtdbRef(rtdb, `${collectionName}/${id}`), itemData);
-          }
+    try {
+      if (fullList) {
+        await rtdbSet(rtdbRef(rtdb, collectionName), fullList);
+      } else if (id && itemData) {
+        if (itemData._deleted) {
+          await rtdbRemove(rtdbRef(rtdb, `${collectionName}/${id}`));
+        } else {
+          await rtdbSet(rtdbRef(rtdb, `${collectionName}/${id}`), itemData);
         }
-      } catch (err) {
-        console.warn(`RTDB ${collectionName} write note:`, err);
       }
-    }
-
-    // 2. Sync to Firestore
-    if (db && id && itemData) {
-      try {
-        await setDoc(doc(db, collectionName, String(id)), itemData, { merge: true });
-      } catch (err) {
-        console.warn(`Firestore ${collectionName} write note:`, err);
-      }
+    } catch (err) {
+      console.warn(`RTDB ${collectionName} write note:`, err);
     }
   };
 
@@ -910,12 +805,6 @@ export const DataProvider = ({ children }) => {
     } catch (e) {}
 
     syncToBackends('events', null, null, indexed);
-    const db = getDb();
-    if (db) {
-      for (const item of indexed) {
-        setDoc(doc(db, 'events', String(item.id)), item, { merge: true }).catch(() => {});
-      }
-    }
   };
 
   const moveEvent = (index, direction) => {
@@ -944,12 +833,6 @@ export const DataProvider = ({ children }) => {
     } catch (e) {}
 
     syncToBackends('gallery', null, null, indexed);
-    const db = getDb();
-    if (db) {
-      for (const item of indexed) {
-        setDoc(doc(db, 'gallery', String(item.id)), item, { merge: true }).catch(() => {});
-      }
-    }
   };
 
   const moveGallery = (index, direction) => {
@@ -978,12 +861,6 @@ export const DataProvider = ({ children }) => {
     } catch (e) {}
 
     syncToBackends('team', null, null, indexed);
-    const db = getDb();
-    if (db) {
-      for (const item of indexed) {
-        setDoc(doc(db, 'team', String(item.id)), item, { merge: true }).catch(() => {});
-      }
-    }
   };
 
   const moveTeam = (index, direction) => {
@@ -1015,15 +892,10 @@ export const DataProvider = ({ children }) => {
       return updated;
     });
 
-    // 2. Synchronize to RTDB and Firestore
+    // 2. Synchronize to Realtime Database
     const rtdb = getRtdb();
     if (rtdb) {
       rtdbSet(rtdbRef(rtdb, 'settings/banners'), newBanners).catch(() => {});
-    }
-
-    const db = getDb();
-    if (db) {
-      setDoc(doc(db, 'settings', 'banners'), newBanners, { merge: true }).catch(() => {});
     }
   };
 

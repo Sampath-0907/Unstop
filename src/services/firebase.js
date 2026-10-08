@@ -36,13 +36,8 @@ export const initFirebase = (config) => {
     }
 
     try {
-      db = getFirestore(app);
-    } catch (e) {
-      console.warn('Firestore init note:', e);
-    }
-
-    try {
-      rtdb = getDatabase(app);
+      const dbUrl = config.databaseURL || 'https://unstop-igniters-default-rtdb.asia-southeast1.firebasedatabase.app';
+      rtdb = getDatabase(app, dbUrl);
     } catch (e) {
       console.warn('Realtime Database init note:', e);
     }
@@ -72,3 +67,4 @@ export {
   rtdbRemove,
   rtdbUpdate
 };
+
