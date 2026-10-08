@@ -9,12 +9,19 @@ import {
   deleteDoc, 
   updateDoc 
 } from 'firebase/firestore';
+import {
+  getDatabase,
+  ref as rtdbRef,
+  set as rtdbSet,
+  get as rtdbGet,
+  onValue as rtdbOnValue,
+  remove as rtdbRemove,
+  update as rtdbUpdate
+} from 'firebase/database';
 
-/**
- * Initialize Firebase dynamically with given or stored configuration
- */
 let app = null;
-let db = null;
+let db = null;   // Cloud Firestore
+let rtdb = null; // Realtime Database
 
 export const initFirebase = (config) => {
   if (!config || !config.apiKey || !config.projectId) {
@@ -27,8 +34,20 @@ export const initFirebase = (config) => {
     } else {
       app = getApp();
     }
-    db = getFirestore(app);
-    return db;
+
+    try {
+      db = getFirestore(app);
+    } catch (e) {
+      console.warn('Firestore init note:', e);
+    }
+
+    try {
+      rtdb = getDatabase(app);
+    } catch (e) {
+      console.warn('Realtime Database init note:', e);
+    }
+
+    return { db, rtdb, app };
   } catch (err) {
     console.error('Firebase initialization error:', err);
     return null;
@@ -36,6 +55,7 @@ export const initFirebase = (config) => {
 };
 
 export const getDb = () => db;
+export const getRtdb = () => rtdb;
 
 export { 
   collection, 
@@ -44,5 +64,11 @@ export {
   getDocs, 
   onSnapshot, 
   deleteDoc, 
-  updateDoc 
+  updateDoc,
+  rtdbRef,
+  rtdbSet,
+  rtdbGet,
+  rtdbOnValue,
+  rtdbRemove,
+  rtdbUpdate
 };

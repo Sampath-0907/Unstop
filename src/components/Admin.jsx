@@ -275,11 +275,11 @@ export const Admin = ({ onNavigateToSite }) => {
   };
 
   const handleCopyRules = () => {
-    const rulesText = `rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}`;
+    const rulesText = `{\n  "rules": {\n    ".read": true,\n    ".write": true\n  }\n}`;
     navigator.clipboard.writeText(rulesText);
     setCopiedRules(true);
     setTimeout(() => setCopiedRules(false), 3000);
-    showToast('Copied Firestore Security Rules to clipboard!');
+    showToast('Copied Realtime Database Rules to clipboard!');
   };
 
   const handleDownloadTeamJS = () => {
@@ -1766,10 +1766,10 @@ export const Admin = ({ onNavigateToSite }) => {
               <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
                 <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
                   <AlertCircle className="w-4 h-4" />
-                  <span>Why Uploaded Photos Only Show on This Device & How to Fix:</span>
+                  <span>How to Enable Multi-Device Sync in 30 Seconds:</span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  When you upload images, they are stored securely on Cloudinary and in your laptop's local storage. To show them on other phones or laptops, Firebase Firestore database must be created in your Firebase Console. Follow these 3 quick steps:
+                  You have created <strong>Firebase Realtime Database</strong> (<code className="bg-slate-900 px-1.5 py-0.5 rounded text-blue-400 font-mono text-[11px]">unstop-igniters-default-rtdb</code>). To allow phones and other computers to load your uploaded pictures, unlock the database rules:
                 </p>
 
                 <div className="space-y-3 pt-1 text-xs">
@@ -1778,15 +1778,15 @@ export const Admin = ({ onNavigateToSite }) => {
                     <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-[11px] shrink-0 mt-0.5">1</span>
                     <div className="space-y-1">
                       <p className="font-bold text-white">
-                        Open Firebase Console Firestore Database:
+                        In your Firebase Console, click on the "Rules" tab (next to "Data"):
                       </p>
                       <a
-                        href="https://console.firebase.google.com/project/unstop-igniters/firestore"
+                        href="https://console.firebase.google.com/project/unstop-igniters/database/unstop-igniters-default-rtdb/rules"
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 font-semibold underline"
                       >
-                        <span>https://console.firebase.google.com/project/unstop-igniters/firestore</span>
+                        <span>Open Firebase Realtime Database Rules</span>
                         <ExternalLink className="w-3 h-3" />
                       </a>
                     </div>
@@ -1795,42 +1795,40 @@ export const Admin = ({ onNavigateToSite }) => {
                   {/* Step 2 */}
                   <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
                     <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-[11px] shrink-0 mt-0.5">2</span>
-                    <div className="space-y-1">
-                      <p className="font-bold text-white">
-                        Click "Create database"
-                      </p>
-                      <p className="text-slate-400">
-                        Choose location (e.g. <strong>asia-south1 (Mumbai)</strong> or <strong>nam5 (United States)</strong>), select <strong>"Start in test mode"</strong>, and click <strong>Create</strong>.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Step 3 */}
-                  <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
-                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-[11px] shrink-0 mt-0.5">3</span>
                     <div className="space-y-2 flex-1">
                       <div className="flex items-center justify-between">
                         <p className="font-bold text-white">
-                          Verify Security Rules (under "Rules" tab):
+                          Replace the text with these rules and click "Publish":
                         </p>
                         <button
                           onClick={handleCopyRules}
                           className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
                         >
                           {copiedRules ? <CheckCheck className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                          <span>{copiedRules ? 'Copied!' : 'Copy Rules'}</span>
+                          <span>{copiedRules ? 'Copied!' : 'Copy JSON Rules'}</span>
                         </button>
                       </div>
-                      <pre className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-300 overflow-x-auto">
-{`rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
-    }
+                      <pre className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[11px] text-emerald-400 overflow-x-auto">
+{`{
+  "rules": {
+    ".read": true,
+    ".write": true
   }
 }`}
                       </pre>
+                    </div>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-[11px] shrink-0 mt-0.5">3</span>
+                    <div className="space-y-1">
+                      <p className="font-bold text-white">
+                        Click "Push All to Cloud Now" in this dashboard
+                      </p>
+                      <p className="text-slate-400">
+                        Once published, click the blue <strong>"Push All to Cloud Now"</strong> button above. All uploaded member pictures, events, and gallery moments will instantly be available globally!
+                      </p>
                     </div>
                   </div>
                 </div>
