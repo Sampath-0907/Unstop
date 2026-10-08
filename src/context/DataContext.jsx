@@ -443,7 +443,9 @@ export const DataProvider = ({ children }) => {
             markSuccessSync();
             const val = snap.val();
             if (val && typeof val === 'object') {
-              setBanners((prev) => ({ ...prev, ...val }));
+              const merged = { ...DEFAULT_BANNERS, ...val };
+              setBanners(merged);
+              try { localStorage.setItem(STORAGE_KEYS.BANNERS, JSON.stringify(merged)); } catch (e) {}
             }
           }
         }, (err) => handleListenerError('RTDB Banners', err));
@@ -883,19 +885,22 @@ export const DataProvider = ({ children }) => {
 
   // --- SITE BANNERS CRUD ---
   const updateBanners = async (newBanners) => {
-    // 1. Immediately update in-memory state and localStorage
+    let fullUpdated = null;
     setBanners((prev) => {
       const updated = { ...prev, ...newBanners };
+      fullUpdated = updated;
       try {
         localStorage.setItem(STORAGE_KEYS.BANNERS, JSON.stringify(updated));
       } catch (e) {}
       return updated;
     });
 
-    // 2. Synchronize to Realtime Database
+    // 2. Synchronize full banners state to Realtime Database
     const rtdb = getRtdb();
-    if (rtdb) {
-      rtdbSet(rtdbRef(rtdb, 'settings/banners'), newBanners).catch(() => {});
+    if (rtdb && fullUpdated) {
+      rtdbSet(rtdbRef(rtdb, 'settings/banners'), fullUpdated).catch((err) => {
+        console.warn('RTDB banner sync error:', err);
+      });
     }
   };
 
