@@ -31,7 +31,14 @@ import {
   Image as ImageIcon,
   Save,
   RefreshCw,
-  GripVertical
+  GripVertical,
+  Cloud,
+  CloudOff,
+  Database,
+  Copy,
+  CheckCheck,
+  FileCode,
+  Globe
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { ImageUploader } from './ImageUploader';
@@ -70,6 +77,13 @@ export const Admin = ({ onNavigateToSite }) => {
     exportAllDataJSON,
     importAllDataJSON,
     cloudinaryConfig,
+    updateCloudinaryConfig,
+    firebaseConfig,
+    updateFirebaseConfig,
+    isFirebaseConnected,
+    cloudSyncStatus,
+    testFirestoreConnection,
+    pushAllDataToCloud,
   } = useData();
 
   // Login form state
@@ -202,6 +216,107 @@ export const Admin = ({ onNavigateToSite }) => {
   // Passcode update state
   const [newPasscode, setNewPasscode] = useState('');
   const [importJsonText, setImportJsonText] = useState('');
+
+  // Cloud sync & diagnostic states
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+  const [isTestingCloud, setIsTestingCloud] = useState(false);
+  const [testResult, setTestResult] = useState(null); // { success: boolean, msg: string }
+  const [copiedRules, setCopiedRules] = useState(false);
+
+  // Settings form states
+  const [cloudinaryCloudName, setCloudinaryCloudName] = useState(cloudinaryConfig?.cloudName || 'dskmpnuzw');
+  const [cloudinaryPreset, setCloudinaryPreset] = useState(cloudinaryConfig?.uploadPreset || 'Unstop');
+
+  useEffect(() => {
+    if (cloudinaryConfig) {
+      setCloudinaryCloudName(cloudinaryConfig.cloudName || 'dskmpnuzw');
+      setCloudinaryPreset(cloudinaryConfig.uploadPreset || 'Unstop');
+    }
+  }, [cloudinaryConfig]);
+
+  const handleSaveCloudinary = (e) => {
+    e.preventDefault();
+    updateCloudinaryConfig({
+      cloudName: cloudinaryCloudName.trim(),
+      uploadPreset: cloudinaryPreset.trim(),
+    });
+    showToast('Cloudinary credentials updated!');
+  };
+
+  const handleSyncToCloud = async () => {
+    setIsSyncingCloud(true);
+    try {
+      const res = await pushAllDataToCloud();
+      showToast(`🚀 Synced ${res.counts.team} Team Members, ${res.counts.events} Events, & ${res.counts.gallery} Albums to Cloud!`);
+    } catch (err) {
+      showToast(`❌ Cloud sync note: ${err.message}`);
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  };
+
+  const handleTestCloudConnection = async () => {
+    setIsTestingCloud(true);
+    setTestResult(null);
+    try {
+      const res = await testFirestoreConnection();
+      if (res.success) {
+        setTestResult({ success: true, msg: '✅ Connection successful! Cloud Firestore is active, writable, and reachable worldwide.' });
+        showToast('Firestore connection verified successfully!');
+      } else {
+        setTestResult({ success: false, msg: `❌ ${res.error}` });
+        showToast('Firestore test failed. Follow the 1-min guide.');
+      }
+    } catch (err) {
+      setTestResult({ success: false, msg: `❌ Error: ${err.message}` });
+    } finally {
+      setIsTestingCloud(false);
+    }
+  };
+
+  const handleCopyRules = () => {
+    const rulesText = `rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}`;
+    navigator.clipboard.writeText(rulesText);
+    setCopiedRules(true);
+    setTimeout(() => setCopiedRules(false), 3000);
+    showToast('Copied Firestore Security Rules to clipboard!');
+  };
+
+  const handleDownloadTeamJS = () => {
+    const code = `export const teamData = ${JSON.stringify(team, null, 2)};\n`;
+    const blob = new Blob([code], { type: 'text/javascript' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'team.js';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Downloaded team.js with latest Cloudinary URLs!');
+  };
+
+  const handleDownloadEventsJS = () => {
+    const code = `export const eventsData = ${JSON.stringify(events, null, 2)};\n`;
+    const blob = new Blob([code], { type: 'text/javascript' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'events.js';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Downloaded events.js!');
+  };
+
+  const handleDownloadGalleryJS = () => {
+    const code = `export const galleryData = ${JSON.stringify(gallery, null, 2)};\n`;
+    const blob = new Blob([code], { type: 'text/javascript' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'gallery.js';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Downloaded gallery.js!');
+  };
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -668,7 +783,39 @@ export const Admin = ({ onNavigateToSite }) => {
         </div>
 
         {/* Action Header Buttons */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Cloud Sync Status Badge */}
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+              cloudSyncStatus?.status === 'synced'
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+                : isSyncingCloud
+                ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                : 'bg-rose-500/10 border-rose-500/30 text-rose-300 hover:bg-rose-500/20'
+            }`}
+            title="Click to check Cloud Sync and Cross-Device availability"
+          >
+            {isSyncingCloud ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
+                <span className="hidden md:inline">Syncing Cloud...</span>
+              </>
+            ) : cloudSyncStatus?.status === 'synced' ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="hidden sm:inline">Cloud Synced (All Devices)</span>
+                <span className="sm:hidden">Synced</span>
+              </>
+            ) : (
+              <>
+                <CloudOff className="w-3.5 h-3.5 text-rose-400" />
+                <span className="hidden sm:inline">Cloud Sync Offline (Local Only)</span>
+                <span className="sm:hidden">Offline</span>
+              </>
+            )}
+          </button>
+
           <button
             onClick={onNavigateToSite}
             className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer border border-slate-700"
@@ -692,7 +839,7 @@ export const Admin = ({ onNavigateToSite }) => {
       <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 py-8 flex-1 flex flex-col">
         
         {/* Navigation Tabs Bar */}
-        <div className="flex items-center justify-between overflow-x-auto pb-4 mb-8 border-b border-slate-800 gap-2 scrollbar-none">
+        <div className="flex items-center justify-between overflow-x-auto pb-4 mb-6 border-b border-slate-800 gap-2 scrollbar-none">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setActiveTab('events')}
@@ -751,7 +898,7 @@ export const Admin = ({ onNavigateToSite }) => {
               }`}
             >
               <Settings className="w-4 h-4" />
-              <span>Backup & Settings</span>
+              <span>Cloud & Settings</span>
             </button>
           </div>
 
@@ -786,6 +933,44 @@ export const Admin = ({ onNavigateToSite }) => {
             </button>
           )}
         </div>
+
+        {/* Cloud Sync Warning Banner when Offline / Permission Issue */}
+        {cloudSyncStatus?.status !== 'synced' && (
+          <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg backdrop-blur-md">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-amber-300 flex items-center gap-2">
+                  <span>Uploaded Pictures Are Currently Visible Only on This Device</span>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-[10px] font-mono font-bold uppercase text-amber-200 border border-amber-500/30">
+                    Local Storage Mode
+                  </span>
+                </h4>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Your uploaded photos are saved safely in this browser, but <strong>Firestore Database</strong> has not been enabled in your Firebase Project <code className="bg-slate-900 px-1.5 py-0.5 rounded text-amber-300 font-mono text-[11px]">unstop-igniters</code>. Enable it in 1 minute so all phones, tablets, and visitors worldwide see your photos!
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 w-full md:w-auto">
+              <button
+                onClick={() => setActiveTab('settings')}
+                className="flex-1 md:flex-initial px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs transition-colors cursor-pointer shadow-md"
+              >
+                1-Min Setup Guide & Fix
+              </button>
+              <button
+                onClick={handleSyncToCloud}
+                disabled={isSyncingCloud}
+                className="flex-1 md:flex-initial px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-md"
+              >
+                {isSyncingCloud ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                <span>Push to Cloud</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* TAB 1: EVENTS MANAGEMENT */}
         {activeTab === 'events' && (
@@ -1469,48 +1654,350 @@ export const Admin = ({ onNavigateToSite }) => {
           </div>
         )}
 
-        {/* TAB 5: SETTINGS & DATA BACKUP */}
+        {/* TAB 5: CLOUD & SETTINGS */}
         {activeTab === 'settings' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto w-full">
+          <div className="space-y-8 max-w-5xl mx-auto w-full">
 
-            {/* Passcode Setting Card */}
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-4">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2 font-display">
-                <Lock className="w-5 h-5 text-yellow-400" />
-                <span>Admin Passcode</span>
-              </h3>
-              <p className="text-xs text-slate-400">
-                Change the passcode used to unlock this administrative management portal.
-              </p>
+            {/* 1. HERO CLOUD SYNC & CROSS-DEVICE CONTROL CENTER */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-80 h-80 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
 
-              <form onSubmit={handlePasscodeChange} className="space-y-3 pt-2">
-                <input
-                  type="text"
-                  value={newPasscode}
-                  onChange={(e) => setNewPasscode(e.target.value)}
-                  placeholder="Enter new passcode (min 4 chars)"
-                  className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm focus:outline-none focus:border-blue-500 font-mono"
-                />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold shrink-0">
+                    <Database className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-xl font-bold text-white font-display">
+                        Cloud Sync & Multi-Device Availability
+                      </h2>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono uppercase tracking-wider border ${
+                        cloudSyncStatus?.status === 'synced'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                          : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                      }`}>
+                        {cloudSyncStatus?.status === 'synced' ? '🟢 Live Worldwide' : '🔴 Action Required'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Ensures all uploaded pictures, member roles, and events display on every phone, tablet, and laptop globally.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleTestCloudConnection}
+                    disabled={isTestingCloud}
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer border border-slate-700"
+                  >
+                    {isTestingCloud ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 text-blue-400" />}
+                    <span>Test Cloud Connection</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Status & Test Results Message */}
+              {testResult && (
+                <div className={`p-4 rounded-2xl text-xs flex items-start gap-2.5 ${
+                  testResult.success
+                    ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300'
+                    : 'bg-rose-500/10 border border-rose-500/30 text-rose-300'
+                }`}>
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div className="flex-1 leading-relaxed">
+                    <span>{testResult.msg}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Current Local Data Ready to Sync */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800/80 text-center">
+                  <span className="block text-2xl font-black text-blue-400 font-display">{team.length}</span>
+                  <span className="text-[11px] font-semibold text-slate-400">Team Leads</span>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800/80 text-center">
+                  <span className="block text-2xl font-black text-amber-400 font-display">{events.length}</span>
+                  <span className="text-[11px] font-semibold text-slate-400">Club Events</span>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800/80 text-center">
+                  <span className="block text-2xl font-black text-emerald-400 font-display">{gallery.length}</span>
+                  <span className="text-[11px] font-semibold text-slate-400">Gallery Albums</span>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800/80 text-center">
+                  <span className="block text-2xl font-black text-purple-400 font-display">2</span>
+                  <span className="text-[11px] font-semibold text-slate-400">Site Posters</span>
+                </div>
+              </div>
+
+              {/* Big 1-Click Push Button */}
+              <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-900/40 via-indigo-900/30 to-slate-900 border border-blue-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-yellow-400" />
+                    <span>Push All Uploaded Photos & Data to Cloud</span>
+                  </h3>
+                  <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                    Uploads all current photos, member details, albums, and posters from this device to Firebase Firestore for instant global access.
+                  </p>
+                </div>
                 <button
-                  type="submit"
-                  className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-colors cursor-pointer"
+                  onClick={handleSyncToCloud}
+                  disabled={isSyncingCloud}
+                  className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-extrabold text-xs transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 cursor-pointer shrink-0"
                 >
-                  Update Passcode
+                  {isSyncingCloud ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Synchronizing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      <span>Push All to Cloud Now</span>
+                    </>
+                  )}
                 </button>
-              </form>
+              </div>
+
+              {/* 1-Minute Firebase Setup Guide (Why images might only be visible on one device) */}
+              <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+                <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>Why Uploaded Photos Only Show on This Device & How to Fix:</span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  When you upload images, they are stored securely on Cloudinary and in your laptop's local storage. To show them on other phones or laptops, Firebase Firestore database must be created in your Firebase Console. Follow these 3 quick steps:
+                </p>
+
+                <div className="space-y-3 pt-1 text-xs">
+                  {/* Step 1 */}
+                  <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-[11px] shrink-0 mt-0.5">1</span>
+                    <div className="space-y-1">
+                      <p className="font-bold text-white">
+                        Open Firebase Console Firestore Database:
+                      </p>
+                      <a
+                        href="https://console.firebase.google.com/project/unstop-igniters/firestore"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 font-semibold underline"
+                      >
+                        <span>https://console.firebase.google.com/project/unstop-igniters/firestore</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Step 2 */}
+                  <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-[11px] shrink-0 mt-0.5">2</span>
+                    <div className="space-y-1">
+                      <p className="font-bold text-white">
+                        Click "Create database"
+                      </p>
+                      <p className="text-slate-400">
+                        Choose location (e.g. <strong>asia-south1 (Mumbai)</strong> or <strong>nam5 (United States)</strong>), select <strong>"Start in test mode"</strong>, and click <strong>Create</strong>.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+                    <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-[11px] shrink-0 mt-0.5">3</span>
+                    <div className="space-y-2 flex-1">
+                      <div className="flex items-center justify-between">
+                        <p className="font-bold text-white">
+                          Verify Security Rules (under "Rules" tab):
+                        </p>
+                        <button
+                          onClick={handleCopyRules}
+                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                        >
+                          {copiedRules ? <CheckCheck className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                          <span>{copiedRules ? 'Copied!' : 'Copy Rules'}</span>
+                        </button>
+                      </div>
+                      <pre className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-300 overflow-x-auto">
+{`rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}`}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Reset Defaults Card */}
+            {/* 2-COL SETTINGS: CLOUDINARY & ADMIN PASSCODE */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              
+              {/* Cloudinary CDN Settings Card */}
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Globe className="w-5 h-5 text-blue-400" />
+                  <h3 className="text-lg font-bold text-white font-display">Cloudinary CDN Settings</h3>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Cloudinary provides fast, automatic image compression and worldwide CDN hosting for high-resolution team photos and gallery moments.
+                </p>
+
+                <form onSubmit={handleSaveCloudinary} className="space-y-3 pt-2">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">Cloud Name</label>
+                    <input
+                      type="text"
+                      value={cloudinaryCloudName}
+                      onChange={(e) => setCloudinaryCloudName(e.target.value)}
+                      placeholder="e.g. dskmpnuzw"
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-mono focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">Upload Preset (Unsigned)</label>
+                    <input
+                      type="text"
+                      value={cloudinaryPreset}
+                      onChange={(e) => setCloudinaryPreset(e.target.value)}
+                      placeholder="e.g. Unstop"
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-mono focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-colors cursor-pointer"
+                  >
+                    Save Cloudinary Settings
+                  </button>
+                </form>
+              </div>
+
+              {/* Passcode Setting Card */}
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Lock className="w-5 h-5 text-yellow-400" />
+                  <h3 className="text-lg font-bold text-white font-display">Admin Passcode</h3>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Change the passcode used to unlock this administrative management portal across sessions.
+                </p>
+
+                <form onSubmit={handlePasscodeChange} className="space-y-3 pt-2">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">New Passcode</label>
+                    <input
+                      type="text"
+                      value={newPasscode}
+                      onChange={(e) => setNewPasscode(e.target.value)}
+                      placeholder="Enter new passcode (min 4 chars)"
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-blue-500 font-mono"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-colors cursor-pointer"
+                  >
+                    Update Passcode
+                  </button>
+                </form>
+              </div>
+
+            </div>
+
+            {/* 3. DOWNLOAD UPDATED SOURCE FILES & BACKUP */}
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6">
+              <div className="flex items-center gap-2">
+                <FileCode className="w-5 h-5 text-emerald-400" />
+                <h3 className="text-lg font-bold text-white font-display">
+                  Download Updated Source Code & Offline Backups
+                </h3>
+              </div>
+              <p className="text-xs text-slate-400">
+                You can download the generated JavaScript data files containing all your uploaded Cloudinary photos and current roster to replace the files in <code className="bg-slate-950 px-1.5 py-0.5 rounded text-slate-300 font-mono text-[11px]">src/data/</code> anytime.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button
+                  onClick={handleDownloadTeamJS}
+                  className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer border border-slate-700"
+                >
+                  <Download className="w-4 h-4 text-blue-400" />
+                  <span>Download team.js</span>
+                </button>
+
+                <button
+                  onClick={handleDownloadEventsJS}
+                  className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer border border-slate-700"
+                >
+                  <Download className="w-4 h-4 text-amber-400" />
+                  <span>Download events.js</span>
+                </button>
+
+                <button
+                  onClick={handleDownloadGalleryJS}
+                  className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer border border-slate-700"
+                >
+                  <Download className="w-4 h-4 text-emerald-400" />
+                  <span>Download gallery.js</span>
+                </button>
+              </div>
+
+              {/* JSON Backup & Restore Form */}
+              <div className="pt-4 border-t border-slate-800 space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <label className="text-xs font-bold text-slate-300">
+                    Full Site JSON Backup & Restore:
+                  </label>
+                  <button
+                    onClick={handleDownloadBackup}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download Full Backup JSON</span>
+                  </button>
+                </div>
+
+                <form onSubmit={handleImportJSON} className="space-y-3">
+                  <textarea
+                    rows={3}
+                    value={importJsonText}
+                    onChange={(e) => setImportJsonText(e.target.value)}
+                    placeholder="Paste exported JSON backup content here to restore..."
+                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-mono focus:outline-none focus:border-blue-500 resize-none"
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      className="py-2.5 px-6 rounded-xl bg-slate-800 hover:bg-blue-600 text-white text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Import & Restore JSON
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            {/* 4. RESET DEFAULTS */}
             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-4">
               <h3 className="text-lg font-bold text-white flex items-center gap-2 font-display">
                 <RotateCcw className="w-5 h-5 text-rose-400" />
-                <span>Reset Data to Defaults</span>
+                <span>Reset Data to Initial Defaults</span>
               </h3>
               <p className="text-xs text-slate-400">
-                Restore all events, gallery pictures, and team leads back to the default initial codebase data.
+                Restore all events, gallery pictures, and team leads back to the default initial codebase repository data.
               </p>
 
-              <div className="pt-6">
+              <div>
                 <button
                   onClick={() => {
                     if (window.confirm('Are you sure you want to reset all data to default? This will clear custom additions stored in browser storage.')) {
@@ -1518,51 +2005,11 @@ export const Admin = ({ onNavigateToSite }) => {
                       showToast('Data reset to default values!');
                     }
                   }}
-                  className="w-full py-3 rounded-xl bg-rose-600/20 border border-rose-500/40 hover:bg-rose-600 text-rose-300 hover:text-white font-bold text-xs transition-colors cursor-pointer"
+                  className="py-3 px-6 rounded-xl bg-rose-600/20 border border-rose-500/40 hover:bg-rose-600 text-rose-300 hover:text-white font-bold text-xs transition-colors cursor-pointer"
                 >
                   Reset All Data to Defaults
                 </button>
               </div>
-            </div>
-
-            {/* Export Backup Card */}
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-4 md:col-span-2">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2 font-display">
-                <Download className="w-5 h-5 text-emerald-400" />
-                <span>Export & Import JSON Backup</span>
-              </h3>
-              <p className="text-xs text-slate-400">
-                Export all your customized events, gallery photos, and team leads into a single backup JSON file, or paste a backup to restore it.
-              </p>
-
-              <div className="flex flex-col sm:flex-row gap-4 pt-2">
-                <button
-                  onClick={handleDownloadBackup}
-                  className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Download Backup File (.json)</span>
-                </button>
-              </div>
-
-              <form onSubmit={handleImportJSON} className="pt-4 border-t border-slate-800 space-y-3">
-                <label className="block text-xs font-bold text-slate-300">
-                  Import Backup JSON:
-                </label>
-                <textarea
-                  rows={4}
-                  value={importJsonText}
-                  onChange={(e) => setImportJsonText(e.target.value)}
-                  placeholder="Paste JSON backup content here..."
-                  className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-mono focus:outline-none focus:border-blue-500"
-                />
-                <button
-                  type="submit"
-                  className="py-2.5 px-6 rounded-xl bg-slate-800 hover:bg-blue-600 text-white text-xs font-bold transition-colors cursor-pointer"
-                >
-                  Import JSON
-                </button>
-              </form>
             </div>
 
           </div>

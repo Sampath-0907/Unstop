@@ -254,6 +254,12 @@ export const DataProvider = ({ children }) => {
   });
 
   const [isFirebaseConnected, setIsFirebaseConnected] = useState(false);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState({
+    status: 'checking', // 'checking' | 'synced' | 'error' | 'uninitialized'
+    error: null,
+    lastSyncedAt: null,
+    isSyncing: false,
+  });
 
   // Sync Cloudinary to localStorage
   useEffect(() => {
@@ -313,21 +319,56 @@ export const DataProvider = ({ children }) => {
   useEffect(() => {
     if (!firebaseConfig?.apiKey || !firebaseConfig?.projectId) {
       setIsFirebaseConnected(false);
+      setCloudSyncStatus({
+        status: 'uninitialized',
+        error: 'Missing Firebase API Key or Project ID.',
+        lastSyncedAt: null,
+        isSyncing: false,
+      });
       return;
     }
 
     const db = initFirebase(firebaseConfig);
     if (!db) {
       setIsFirebaseConnected(false);
+      setCloudSyncStatus({
+        status: 'uninitialized',
+        error: 'Failed to initialize Firebase App.',
+        lastSyncedAt: null,
+        isSyncing: false,
+      });
       return;
     }
 
     setIsFirebaseConnected(true);
 
+    const handleListenerError = (collName, err) => {
+      console.warn(`Firestore ${collName} listener warning:`, err);
+      let errMsg = err?.message || String(err);
+      if (errMsg.includes('Cloud Firestore API has not been used') || errMsg.includes('PERMISSION_DENIED')) {
+        errMsg = 'Cloud Firestore Database is not enabled or permissions are denied in Firebase Console.';
+      }
+      setCloudSyncStatus((prev) => ({
+        ...prev,
+        status: 'error',
+        error: errMsg,
+      }));
+    };
+
+    const markSuccessSync = () => {
+      setCloudSyncStatus((prev) => ({
+        ...prev,
+        status: 'synced',
+        error: null,
+        lastSyncedAt: new Date().toISOString(),
+      }));
+    };
+
     // 1. Real-time Events Listener (3-layer merge)
     const unsubEvents = onSnapshot(
       collection(db, 'events'),
       (snapshot) => {
+        markSuccessSync();
         const savedEvents = (() => {
           try {
             const s = localStorage.getItem(STORAGE_KEYS.EVENTS);
@@ -346,15 +387,14 @@ export const DataProvider = ({ children }) => {
           setEvents(merged);
         }
       },
-      (error) => {
-        console.warn('Firestore Events listener error:', error);
-      }
+      (error) => handleListenerError('Events', error)
     );
 
     // 2. Real-time Gallery Listener (3-layer merge)
     const unsubGallery = onSnapshot(
       collection(db, 'gallery'),
       (snapshot) => {
+        markSuccessSync();
         const savedGallery = (() => {
           try {
             const s = localStorage.getItem(STORAGE_KEYS.GALLERY);
@@ -373,15 +413,14 @@ export const DataProvider = ({ children }) => {
           setGallery(merged);
         }
       },
-      (error) => {
-        console.warn('Firestore Gallery listener error:', error);
-      }
+      (error) => handleListenerError('Gallery', error)
     );
 
     // 3. Real-time Team Listener (3-layer merge)
     const unsubTeam = onSnapshot(
       collection(db, 'team'),
       (snapshot) => {
+        markSuccessSync();
         const savedTeam = (() => {
           try {
             const s = localStorage.getItem(STORAGE_KEYS.TEAM);
@@ -400,22 +439,19 @@ export const DataProvider = ({ children }) => {
           setTeam(merged);
         }
       },
-      (error) => {
-        console.warn('Firestore Team listener error:', error);
-      }
+      (error) => handleListenerError('Team', error)
     );
 
     // 4. Real-time Banners Listener
     const unsubBanners = onSnapshot(
       doc(db, 'settings', 'banners'),
       (docSnap) => {
+        markSuccessSync();
         if (docSnap.exists()) {
           setBanners((prev) => ({ ...prev, ...docSnap.data() }));
         }
       },
-      (error) => {
-        console.warn('Firestore Banners listener error:', error);
-      }
+      (error) => handleListenerError('Banners', error)
     );
 
     return () => {
@@ -434,33 +470,101 @@ export const DataProvider = ({ children }) => {
     setFirebaseConfig((prev) => ({ ...prev, ...newConfig }));
   };
 
-  // Seed Firestore with initial site content
-  const seedFirestoreData = async () => {
+  // Test Firestore Connection
+  const testFirestoreConnection = async () => {
+    const db = getDb();
+    if (!db) {
+      return { success: false, error: 'Firebase is not initialized. Please verify configuration.' };
+    }
+    try {
+      const pingDoc = doc(db, '_healthcheck', 'ping');
+      await setDoc(pingDoc, { ping: true, timestamp: new Date().toISOString() });
+      setCloudSyncStatus({
+        status: 'synced',
+        error: null,
+        lastSyncedAt: new Date().toISOString(),
+        isSyncing: false,
+      });
+      return { success: true };
+    } catch (err) {
+      let errMsg = err?.message || String(err);
+      if (errMsg.includes('Cloud Firestore API has not been used') || errMsg.includes('PERMISSION_DENIED')) {
+        errMsg = 'Cloud Firestore is not enabled or permission was denied. Please create/enable Firestore Database in Firebase Console and set rules to allow read/write.';
+      }
+      setCloudSyncStatus({
+        status: 'error',
+        error: errMsg,
+        lastSyncedAt: null,
+        isSyncing: false,
+      });
+      return { success: false, error: errMsg };
+    }
+  };
+
+  // Push / Seed All Local Data to Firestore Cloud so every device worldwide sees it
+  const pushAllDataToCloud = async () => {
     const db = getDb();
     if (!db) {
       throw new Error('Firebase Firestore is not initialized.');
     }
 
-    // Seed Events
-    for (const ev of events) {
-      const docId = String(ev.id);
-      await setDoc(doc(db, 'events', docId), ev, { merge: true });
-    }
+    setCloudSyncStatus((prev) => ({ ...prev, isSyncing: true }));
 
-    // Seed Gallery
-    for (const gal of gallery) {
-      const docId = String(gal.id);
-      await setDoc(doc(db, 'gallery', docId), gal, { merge: true });
-    }
+    try {
+      // 1. Seed Events
+      for (const ev of events) {
+        const docId = String(ev.id);
+        await setDoc(doc(db, 'events', docId), { ...ev, id: docId }, { merge: true });
+      }
 
-    // Seed Team
-    for (const mem of team) {
-      const docId = String(mem.id);
-      await setDoc(doc(db, 'team', docId), mem, { merge: true });
-    }
+      // 2. Seed Gallery
+      for (const gal of gallery) {
+        const docId = String(gal.id);
+        await setDoc(doc(db, 'gallery', docId), { ...gal, id: docId }, { merge: true });
+      }
 
-    return true;
+      // 3. Seed Team
+      for (const mem of team) {
+        const docId = String(mem.id);
+        await setDoc(doc(db, 'team', docId), { ...mem, id: docId }, { merge: true });
+      }
+
+      // 4. Seed Banners
+      if (banners) {
+        await setDoc(doc(db, 'settings', 'banners'), banners, { merge: true });
+      }
+
+      setCloudSyncStatus({
+        status: 'synced',
+        error: null,
+        lastSyncedAt: new Date().toISOString(),
+        isSyncing: false,
+      });
+
+      return {
+        success: true,
+        counts: {
+          team: team.length,
+          events: events.length,
+          gallery: gallery.length,
+        },
+      };
+    } catch (err) {
+      let errMsg = err?.message || String(err);
+      if (errMsg.includes('Cloud Firestore API has not been used') || errMsg.includes('PERMISSION_DENIED')) {
+        errMsg = 'Firestore Database is not enabled in Firebase Console (unstop-igniters) or permissions were denied. Please enable Firestore Database in test mode.';
+      }
+      setCloudSyncStatus({
+        status: 'error',
+        error: errMsg,
+        lastSyncedAt: null,
+        isSyncing: false,
+      });
+      throw new Error(errMsg);
+    }
   };
+
+  const seedFirestoreData = pushAllDataToCloud;
 
   // Auth methods
   const login = (inputPasscode) => {
@@ -940,6 +1044,9 @@ export const DataProvider = ({ children }) => {
         firebaseConfig,
         updateFirebaseConfig,
         isFirebaseConnected,
+        cloudSyncStatus,
+        testFirestoreConnection,
+        pushAllDataToCloud,
         seedFirestoreData,
       }}
     >
