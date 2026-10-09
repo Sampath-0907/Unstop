@@ -4,7 +4,8 @@ import {
   ArrowUp,
   Heart,
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  Lock
 } from 'lucide-react';
 import { LinkedInIcon, WhatsAppIcon, InstagramIcon } from './Icons';
 
@@ -158,9 +159,20 @@ export const Footer = () => {
 
         </div>
 
-        {/* Bottom Bar: Copyright & Back-to-Top */}
+        {/* Bottom Bar: Copyright, Admin Portal Link & Back-to-Top */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
-          <p>© 2026 Unstop Igniters VIIT. All rights reserved.</p>
+          <div className="flex items-center gap-3">
+            <p>© 2026 Unstop Igniters VIIT. All rights reserved.</p>
+            <span className="text-slate-700">•</span>
+            <a 
+              href="#admin" 
+              className="text-slate-500 hover:text-blue-400 inline-flex items-center gap-1 transition-colors"
+              title="Admin Portal"
+            >
+              <Lock className="w-3 h-3" />
+              <span>Admin</span>
+            </a>
+          </div>
 
           <p className="flex items-center gap-1">
             Built with <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500" /> by student developers for student developers.

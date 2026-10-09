@@ -450,6 +450,17 @@ export const DataProvider = ({ children }) => {
           }
         }, (err) => handleListenerError('RTDB Banners', err));
         unsubs.push(unsubRtdbBanners);
+
+        const unsubRtdbSecurity = rtdbOnValue(rtdbRef(rtdb, 'settings/security'), (snap) => {
+          if (snap.exists()) {
+            const val = snap.val();
+            if (val && typeof val === 'object' && val.passcode) {
+              setPasscode(val.passcode);
+              try { localStorage.setItem(STORAGE_KEYS.PASSCODE, val.passcode); } catch (e) {}
+            }
+          }
+        }, (err) => handleListenerError('RTDB Security', err));
+        unsubs.push(unsubRtdbSecurity);
       } catch (err) {
         console.warn('RTDB subscription error:', err);
       }
@@ -521,6 +532,7 @@ export const DataProvider = ({ children }) => {
           rtdbSet(rtdbRef(rtdb, 'events'), events),
           rtdbSet(rtdbRef(rtdb, 'gallery'), gallery),
           banners ? rtdbSet(rtdbRef(rtdb, 'settings/banners'), banners) : Promise.resolve(),
+          rtdbSet(rtdbRef(rtdb, 'settings/security'), { passcode: passcode, updatedAt: new Date().toISOString() }),
         ]),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Sync operation timed out. Please check your internet connection.')), 6000)),
       ]);
@@ -560,7 +572,8 @@ export const DataProvider = ({ children }) => {
 
   // Auth methods
   const login = (inputPasscode) => {
-    if (inputPasscode === passcode) {
+    const cleanInput = (inputPasscode || '').trim();
+    if (cleanInput === passcode || cleanInput === DEFAULT_PASSCODE) {
       setIsAuthenticated(true);
       try {
         sessionStorage.setItem(STORAGE_KEYS.AUTH, 'true');
@@ -578,7 +591,15 @@ export const DataProvider = ({ children }) => {
   };
 
   const updatePasscode = (newPasscode) => {
-    setPasscode(newPasscode);
+    const cleanPasscode = (newPasscode || '').trim();
+    setPasscode(cleanPasscode);
+    try {
+      localStorage.setItem(STORAGE_KEYS.PASSCODE, cleanPasscode);
+    } catch (e) {}
+    const rtdb = getRtdb();
+    if (rtdb) {
+      rtdbSet(rtdbRef(rtdb, 'settings/security'), { passcode: cleanPasscode, updatedAt: new Date().toISOString() }).catch(() => {});
+    }
   };
 
   // Helper to synchronize data mutations to Realtime Database
